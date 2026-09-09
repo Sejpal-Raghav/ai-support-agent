@@ -1,0 +1,13 @@
+version: "fixture-1"
+brand_id: "BrandHelp"
+created_from_split: "train"
+intents:
+  - {intent_id: app_issue, display_name: "App issue", description: "App troubleshooting", inclusion_rules: ["app fails", "app crashes"], exclusion_rules: ["billing"], positive_examples: ["app crashes"], counter_examples: ["refund"], source_cluster_ids: [1], training_support: 10}
+  - {intent_id: login_issue, display_name: "Login issue", description: "Login access", inclusion_rules: ["cannot log in", "sign in fails"], exclusion_rules: ["billing"], positive_examples: ["cannot log in"], counter_examples: ["refund"], source_cluster_ids: [2], training_support: 10}
+  - {intent_id: billing_question, display_name: "Billing question", description: "Billing information", inclusion_rules: ["charge question", "invoice"], exclusion_rules: ["app crash"], positive_examples: ["invoice"], counter_examples: ["app crash"], source_cluster_ids: [3], training_support: 10}
+  - {intent_id: feature_how_to, display_name: "Feature how-to", description: "Using a feature", inclusion_rules: ["how to", "where is"], exclusion_rules: ["billing"], positive_examples: ["how to use"], counter_examples: ["invoice"], source_cluster_ids: [4], training_support: 10}
+  - {intent_id: service_information, display_name: "Service information", description: "General service information", inclusion_rules: ["what is", "availability"], exclusion_rules: ["app crash"], positive_examples: ["what is included"], counter_examples: ["app crash"], source_cluster_ids: [5], training_support: 10}
+  - {intent_id: other, display_name: "Other", description: "Unsupported request", inclusion_rules: ["none apply", "unclear"], exclusion_rules: ["all substantive intents"], positive_examples: ["random issue"], counter_examples: ["how to use"], source_cluster_ids: [-1], training_support: 10}
+other_intent_id: "other"
+cluster_review_sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+content_sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"

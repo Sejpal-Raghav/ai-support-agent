@@ -1,0 +1,24 @@
+version: "1"
+hard_scope_categories:
+  privacy_or_credential_risk:
+    - "\\b(password|passcode|pin|cvv|card number|social security)\\b"
+  authentication_required:
+    - "\\b(verify identity|verification code|two.factor|2fa|login code)\\b"
+  account_action_required:
+    - "\\b(cancel|close account|unlock|change (my )?account|reset account)\\b"
+  money_or_billing_risk:
+    - "\\b(refund|chargeback|charged twice|duplicate charge|card charged)\\b"
+  legal_or_safety_risk:
+    - "\\b(lawyer|legal action|sue|police|unsafe|self harm|suicide|threat)\\b"
+  live_status_required:
+    - "\\b(where is my order|track my order|account status|is .* down|outage)\\b"
+positive_ack:
+  - "\\b(thanks|thank you|worked|fixed|sorted|resolved)\\b"
+negative_followup:
+  - "\\b(not working|still|didn't work|did not work|worse|unresolved)\\b"
+severe_negative:
+  - "\\b(furious|scam|fraud|unacceptable|disgusting|never again)\\b"
+actionable_cue:
+  - "\\b(try|check|update|restart|visit|use|follow|enable|disable|clear)\\b"
+generic_only:
+  - "^(thanks|thank you|sorry|we're sorry|we are sorry)[!. ]*$"

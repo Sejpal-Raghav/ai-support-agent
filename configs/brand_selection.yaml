@@ -1,0 +1,19 @@
+seed: 1729
+pilot_messages_per_brand: 5000
+top_brands_for_pilot: 8
+minimum_direct_reply_pairs: 8000
+minimum_threads: 15000
+minimum_resolution_proxies: 8000
+minimum_inbound_messages: 25000
+minimum_multi_turn_rate: 0.12
+minimum_english_share: 0.80
+minimum_pilot_clusters: 5
+maximum_pilot_clusters: 15
+minimum_pilot_cluster_coverage: 0.60
+maximum_largest_cluster_share: 0.55
+score_weights:
+  resolution_proxy: 0.35
+  inbound_messages: 0.20
+  multi_turn_rate: 0.20
+  pilot_cluster_coverage: 0.15
+  pilot_cluster_concentration: 0.10

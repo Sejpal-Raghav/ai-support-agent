@@ -1,0 +1,8 @@
+# Generated in Phase 2 after train-only clustering and reviewed cluster decisions.
+version: "uninitialized"
+brand_id: "uninitialized"
+created_from_split: "train"
+intents: []
+other_intent_id: "other"
+cluster_review_sha256: "uninitialized"
+content_sha256: "uninitialized"

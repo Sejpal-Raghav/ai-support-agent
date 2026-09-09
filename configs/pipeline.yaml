@@ -1,0 +1,39 @@
+schema_version: "1"
+seeds:
+  global: 1729
+  golden_sampling: 2718
+  bootstrap: 314159
+cohort:
+  threads: 12000
+  split_ratios: [0.70, 0.15, 0.15]
+validation:
+  model_selection_size: 100
+  calibration_size: 100
+  policy_size: 200
+golden:
+  size: 200
+  edge_size: 100
+  non_edge_size: 100
+models:
+  embedding:
+    model_id: "sentence-transformers/all-MiniLM-L6-v2"
+    revision: "fa97f6e"
+    dimension: 384
+    batch_size: 64
+    device: "cpu"
+  drafter:
+    model: "gpt-4.1-mini-2025-04-14"
+    temperature: 0.0
+    max_output_tokens: 180
+  judge:
+    model: "gpt-4.1-2025-04-14"
+    temperature: 0.0
+    max_output_tokens: 350
+policy:
+  target_error_upper: 0.05
+  minimum_escalation_recall: 0.90
+  minimum_auto_count: 50
+paths:
+  raw_csv: "data/raw/twcs.csv"
+  artifacts_dir: "artifacts"
+  frozen_dir: "data/frozen"

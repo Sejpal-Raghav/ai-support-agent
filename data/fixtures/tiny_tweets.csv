@@ -1,0 +1,3 @@
+tweet_id,author_id,inbound,created_at,text,response_tweet_id,in_response_to_tweet_id
+1,customer_1,True,"Mon Jan 01 00:00:00 +0000 2018",I need help,2,
+2,BrandHelp,False,"Mon Jan 01 00:01:00 +0000 2018",Try restarting the app,,1
