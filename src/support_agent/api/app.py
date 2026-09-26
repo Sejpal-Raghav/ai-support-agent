@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -9,6 +10,7 @@ from time import perf_counter
 from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from support_agent.voice.transcription import (
@@ -71,6 +73,7 @@ def create_app(
     responder: ChatResponder | None = None,
     transcriber: Transcriber | None = None,
     readiness: Callable[[], HealthPayload] | None = None,
+    static_dir: Path | None = None,
 ) -> FastAPI:
     """Create an injectable app; production wiring is deliberately artifact-dependent."""
     app = FastAPI(title="Voice Support Chatbot", version="0.1.0")
@@ -133,6 +136,9 @@ def create_app(
             latency_ms=round((perf_counter() - started) * 1000),
         )
 
+    if static_dir and static_dir.is_dir():
+        app.mount("/", StaticFiles(directory=static_dir, html=True), name="frontend")
+
     return app
 
 
@@ -145,4 +151,4 @@ def build_vosk_transcriber(model_path: Path) -> Transcriber:
     return transcriber
 
 
-app = create_app()
+app = create_app(static_dir=Path(os.environ["STATIC_DIR"]) if "STATIC_DIR" in os.environ else None)

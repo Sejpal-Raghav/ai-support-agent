@@ -47,3 +47,11 @@ def test_transcription_contract_and_typed_error() -> None:
     )
     assert unavailable.status_code == 503
     assert unavailable.json()["detail"]["code"] == "asr_unavailable"
+
+
+def test_static_frontend_is_served_after_api_routes(tmp_path) -> None:
+    (tmp_path / "index.html").write_text("<h1>Listening desk</h1>", encoding="utf-8")
+    app = create_app(static_dir=tmp_path)
+    client = TestClient(app)
+    assert client.get("/").text == "<h1>Listening desk</h1>"
+    assert client.get("/api/health").status_code == 200
