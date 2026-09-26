@@ -44,8 +44,12 @@ ml = [
   "hdbscan==0.8.40",
 ]
 api = [
+  "fastapi==0.115.8",
   "openai==1.63.2",
+  "python-multipart==0.0.20",
   "tenacity==9.0.0",
+  "uvicorn==0.34.0",
+  "vosk==0.3.45",
 ]
 dev = [
   "pytest==8.3.4",
