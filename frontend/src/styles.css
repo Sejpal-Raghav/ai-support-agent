@@ -1,0 +1,32 @@
+:root { font-family: Georgia, "Times New Roman", serif; color: #12201c; background: #dce6dc; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button, input { font: inherit; }
+main { width: min(980px, calc(100% - 32px)); margin: 0 auto; padding: 64px 0 80px; }
+header { max-width: 720px; margin-bottom: 36px; }
+.kicker, .label, .status { font-family: Arial, sans-serif; font-size: .76rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.kicker { color: #bb4e2c; }
+h1 { margin: 8px 0 16px; font-size: clamp(2.6rem, 7vw, 5.5rem); letter-spacing: -.055em; line-height: .91; font-weight: 500; }
+.lede { max-width: 620px; font-size: 1.13rem; line-height: 1.55; }
+.desk { display: grid; grid-template-columns: 300px 1fr; background: #fbfaf4; border: 1px solid #9eb2a4; box-shadow: 10px 10px 0 #b8cabb; }
+.recording-panel { min-height: 390px; padding: 28px; background: #16352d; color: #f8f4e9; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.status { margin: 0 auto auto; color: #d9edce; }
+.mic { width: 146px; height: 146px; border: 1px solid #e7d89f; border-radius: 50%; background: #e7d89f; color: #16352d; cursor: pointer; font-family: Arial, sans-serif; font-weight: 700; font-size: 1.1rem; transition: transform .15s ease, background .15s ease; }
+.mic:hover:not(:disabled), .mic:focus-visible { transform: scale(1.04); outline: 3px solid #fff; outline-offset: 4px; }
+.mic.active { background: #e67855; color: #fff; border-color: #e67855; animation: pulse 1.2s ease-in-out infinite; }
+.mic:disabled { opacity: .55; cursor: wait; }
+.hint { margin: auto 0 0; font-family: Arial, sans-serif; font-size: .88rem; line-height: 1.45; color: #d9edce; }
+.conversation { padding: 28px; display: grid; align-content: start; gap: 22px; }
+article { padding-bottom: 20px; border-bottom: 1px solid #c7d0c6; }
+article p:not(.label) { margin: 0; font-size: 1.2rem; line-height: 1.5; }
+.label { margin: 0 0 9px; color: #4c6459; }
+.answer-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+.answer-heading span { padding: 4px 8px; background: #dce6dc; border-radius: 2px; font: 700 .7rem Arial, sans-serif; text-transform: uppercase; }
+dl { display: flex; gap: 32px; margin: 18px 0 0; font-family: Arial, sans-serif; }
+dt { color: #66796d; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; } dd { margin: 4px 0 0; text-transform: capitalize; }
+details { margin-top: 18px; font-family: Arial, sans-serif; font-size: .9rem; } summary { cursor: pointer; font-weight: 700; } details p { margin: 8px 0 0; }
+.fallback, .error { font-family: Arial, sans-serif; color: #a73d25; font-size: .9rem; text-transform: capitalize; }
+.typed { margin-top: 28px; font-family: Arial, sans-serif; } .typed label { display: block; font-weight: 700; margin-bottom: 8px; } .typed div { display: flex; gap: 8px; } .typed input { flex: 1; min-width: 0; padding: 13px; border: 1px solid #6c8073; background: #fbfaf4; } .typed button { border: 0; background: #bb4e2c; color: #fff; padding: 0 20px; cursor: pointer; font-weight: 700; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 12px rgba(230, 120, 85, .23); } }
+@media (max-width: 700px) { main { padding-top: 36px; } .desk { grid-template-columns: 1fr; } .recording-panel { min-height: 250px; } .mic { width: 110px; height: 110px; } .typed div { display: block; } .typed button { width: 100%; min-height: 45px; margin-top: 8px; } }
+@media (prefers-reduced-motion: reduce) { .mic { transition: none; } .mic.active { animation: none; } }
