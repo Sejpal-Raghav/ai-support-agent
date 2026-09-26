@@ -43,3 +43,4 @@ def test_ingest_round_trip_fixture(tmp_path: Path) -> None:
     assert stats.rows_written == 2
     assert stats.rows_rejected == 0
     assert [message.tweet_id for message in messages] == ["1", "2"]
+    assert not output.with_suffix(".parquet.part").exists()

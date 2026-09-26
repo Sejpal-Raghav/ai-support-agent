@@ -133,9 +133,11 @@ def _to_arrow_table(normalized: pd.DataFrame) -> pa.Table:
 
 
 def ingest_csv(csv_path: Path, output_path: Path, chunksize: int = 250_000) -> IngestStats:
-    """Validate and convert source CSV rows to a normalized Parquet table."""
+    """Validate and atomically convert source CSV rows to a normalized Parquet table."""
     validate_source_columns(csv_path, REQUIRED_SOURCE_COLUMNS)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = output_path.with_suffix(f"{output_path.suffix}.part")
+    temporary_path.unlink(missing_ok=True)
     rows_read = 0
     rows_written = 0
     rows_rejected = 0
@@ -155,14 +157,16 @@ def ingest_csv(csv_path: Path, output_path: Path, chunksize: int = 250_000) -> I
                 continue
             table = _to_arrow_table(normalized)
             if parquet_writer is None:
-                parquet_writer = pq.ParquetWriter(output_path, table.schema)
+                parquet_writer = pq.ParquetWriter(temporary_path, table.schema)
             parquet_writer.write_table(table)
             rows_written += len(normalized)
     finally:
         if parquet_writer is not None:
             parquet_writer.close()
     if rows_written == 0:
+        temporary_path.unlink(missing_ok=True)
         raise ValueError("Ingestion produced zero valid rows")
+    temporary_path.replace(output_path)
     return IngestStats(
         source_path=csv_path.as_posix(),
         output_path=output_path.as_posix(),
