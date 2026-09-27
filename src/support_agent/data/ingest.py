@@ -132,9 +132,16 @@ def _to_arrow_table(normalized: pd.DataFrame) -> pa.Table:
     )
 
 
-def ingest_csv(csv_path: Path, output_path: Path, chunksize: int = 250_000) -> IngestStats:
+def ingest_csv(
+    csv_path: Path,
+    output_path: Path,
+    chunksize: int = 250_000,
+    max_rows: int | None = None,
+) -> IngestStats:
     """Validate and atomically convert source CSV rows to a normalized Parquet table."""
     validate_source_columns(csv_path, REQUIRED_SOURCE_COLUMNS)
+    if max_rows is not None and max_rows <= 0:
+        raise ValueError("max_rows must be positive when provided")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = output_path.with_suffix(f"{output_path.suffix}.part")
     temporary_path.unlink(missing_ok=True)
@@ -150,6 +157,11 @@ def ingest_csv(csv_path: Path, output_path: Path, chunksize: int = 250_000) -> I
             keep_default_na=True,
         )
         for chunk in source_chunks:
+            if max_rows is not None:
+                remaining = max_rows - rows_read
+                if remaining <= 0:
+                    break
+                chunk = chunk.iloc[:remaining]
             rows_read += len(chunk)
             normalized, rejected = _normalized_frame(chunk)
             rows_rejected += rejected

@@ -38,6 +38,10 @@ def main(
     interim_dir: Path = typer.Option(Path("data/interim")),
     brand_config: Path = typer.Option(Path("configs/brand_selection.yaml"), exists=True),
     risk_config: Path = typer.Option(Path("configs/risk_keywords.yaml"), exists=True),
+    max_rows: int | None = typer.Option(
+        750_000,
+        help="Deterministic leading source rows; use 0 only through code, never the CLI.",
+    ),
 ) -> None:
     """Materialize all Phase-1 artifacts and print the selected brand."""
     artifacts_dir.mkdir(parents=True, exist_ok=True)
@@ -48,7 +52,7 @@ def main(
     selection_path = artifacts_dir / "brand_selection.json"
     manifest_path = artifacts_dir / "phase1_manifest.json"
 
-    ingest_stats = ingest_csv(raw_csv, ingested_path)
+    ingest_stats = ingest_csv(raw_csv, ingested_path, max_rows=max_rows)
     threads = reconstruct_threads(list(iter_ingested_messages(ingested_path)))
     _write_jsonl(threads_path, threads)
     settings = load_brand_selection_settings(brand_config)

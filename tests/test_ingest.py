@@ -44,3 +44,9 @@ def test_ingest_round_trip_fixture(tmp_path: Path) -> None:
     assert stats.rows_rejected == 0
     assert [message.tweet_id for message in messages] == ["1", "2"]
     assert not output.with_suffix(".parquet.part").exists()
+
+
+def test_ingest_honours_max_rows(tmp_path: Path) -> None:
+    output = tmp_path / "limited.parquet"
+    stats = ingest_csv(Path("data/fixtures/tiny_tweets.csv"), output, chunksize=2, max_rows=1)
+    assert stats.rows_read == stats.rows_written == 1
