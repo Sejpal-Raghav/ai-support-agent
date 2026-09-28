@@ -3,12 +3,15 @@ from __future__ import annotations
 import json
 import wave
 from io import BytesIO
+from types import SimpleNamespace
 
 import pytest
 
+from support_agent.voice import transcription
 from support_agent.voice.transcription import (
     MAX_AUDIO_BYTES,
     AudioValidationError,
+    convert_to_pcm_wav,
     transcribe_pcm_wav,
     validate_audio_payload,
 )
@@ -84,3 +87,29 @@ def test_transcribe_pcm_wav_rejects_long_audio() -> None:
             asr_model_version="test-vosk",
         )
     assert error.value.code == "audio_too_long"
+
+
+def test_duration_uses_pcm_size_when_streamed_wav_header_is_unbounded() -> None:
+    audio = bytearray(wav_bytes())
+    audio[40:44] = (0xFFFFFFFF).to_bytes(4, "little")
+    result = transcribe_pcm_wav(
+        bytes(audio), recognizer=FakeRecognizer(final_text="hello"), asr_model_version="test-vosk"
+    )
+    assert result.duration_ms == 1000
+
+
+def test_conversion_uses_bundled_ffmpeg_when_system_binary_is_absent(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        captured["input"] = kwargs["input"]
+        return SimpleNamespace(returncode=0, stdout=b"converted", stderr=b"")
+
+    monkeypatch.setattr(transcription.shutil, "which", lambda _: None)
+    monkeypatch.setattr(transcription.subprocess, "run", fake_run)
+    monkeypatch.setattr("imageio_ffmpeg.get_ffmpeg_exe", lambda: "bundled-ffmpeg")
+
+    assert convert_to_pcm_wav(b"browser-audio") == b"converted"
+    assert captured["command"][0] == "bundled-ffmpeg"
+    assert captured["input"] == b"browser-audio"

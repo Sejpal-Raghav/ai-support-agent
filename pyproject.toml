@@ -45,11 +45,13 @@ ml = [
 ]
 api = [
   "fastapi==0.115.8",
+  "imageio-ffmpeg==0.6.0",
   "python-multipart==0.0.20",
   "uvicorn==0.34.0",
   "vosk==0.3.45",
 ]
 dev = [
+  "httpx==0.28.1",
   "pytest==8.3.4",
   "pytest-cov==6.0.0",
   "ruff==0.9.5",
@@ -82,7 +84,7 @@ mypy_path = "src"
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["kagglehub", "scipy.*", "sklearn.*"]
+module = ["imageio_ffmpeg", "kagglehub", "scipy.*", "sklearn.*", "transformers", "vosk"]
 ignore_missing_imports = true
 
 [tool.uv]

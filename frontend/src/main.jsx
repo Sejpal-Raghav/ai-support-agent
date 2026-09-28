@@ -6,7 +6,7 @@ const initialState = { status: "idle", transcript: "", result: null, error: "" }
 
 function App() {
   const recorderRef = useRef(null);
-  const streamRef = useRef(null);
+  const recordingTimerRef = useRef(null);
   const [state, setState] = useState(initialState);
   const [typedText, setTypedText] = useState("");
 
@@ -30,7 +30,10 @@ function App() {
     return body.transcript;
   };
 
-  const stopRecording = () => recorderRef.current?.stop();
+  const stopRecording = () => {
+    if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
+    recorderRef.current?.stop();
+  };
 
   const finishTranscript = async (transcript) => {
     setState((current) => ({ ...current, transcript, status: "thinking" }));
@@ -44,40 +47,41 @@ function App() {
 
   const startRecording = async () => {
     try {
-      const BrowserRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (BrowserRecognition) {
-        const recognition = new BrowserRecognition();
-        recognition.lang = "en-US";
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
-        recorderRef.current = recognition;
-        recognition.onresult = (event) => finishTranscript(event.results[0][0].transcript);
-        recognition.onerror = () => setState({ ...initialState, error: "Speech was not recognized. Try again or type your request." });
-        recognition.onend = () => recorderRef.current = null;
-        recognition.start();
-        setState({ ...initialState, status: "recording" });
-        return;
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        throw new Error("This browser cannot record audio. Use current Chrome or Edge, or type your request.");
       }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const chunks = [];
-      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
-      streamRef.current = stream;
+      const preferredType = "audio/webm;codecs=opus";
+      const mimeType = MediaRecorder.isTypeSupported(preferredType) ? preferredType : "audio/webm";
+      const recorder = new MediaRecorder(stream, { mimeType });
       recorderRef.current = recorder;
       recorder.ondataavailable = (event) => chunks.push(event.data);
       recorder.onstop = async () => {
+        if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+        recorderRef.current = null;
         stream.getTracks().forEach((track) => track.stop());
         setState((current) => ({ ...current, status: "transcribing" }));
         try {
-          const transcript = await transcribe(new Blob(chunks, { type: "audio/webm" }));
+          const transcript = await transcribe(new Blob(chunks, { type: mimeType }));
           await finishTranscript(transcript);
         } catch (error) {
           setState((current) => ({ ...current, status: "idle", error: error.message }));
         }
       };
+      recorder.onerror = () => {
+        if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+        recorderRef.current = null;
+        stream.getTracks().forEach((track) => track.stop());
+        setState({ ...initialState, error: "The browser could not record audio. Try again or type your request." });
+      };
       recorder.start();
+      recordingTimerRef.current = setTimeout(() => recorder.stop(), 30000);
       setState({ ...initialState, status: "recording" });
     } catch (error) {
-      setState({ ...initialState, error: "Microphone access is needed to record a support request." });
+      setState({ ...initialState, error: error.message || "Microphone access is needed to record a support request." });
     }
   };
 

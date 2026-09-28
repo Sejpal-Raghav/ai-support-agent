@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import time
 import wave
 from dataclasses import dataclass
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Protocol
@@ -70,8 +72,15 @@ def validate_audio_payload(audio: bytes, content_type: str | None) -> None:
 
 def convert_to_pcm_wav(audio: bytes, *, ffmpeg_binary: str = "ffmpeg") -> bytes:
     """Convert untrusted audio in-memory to mono 16-kHz signed 16-bit WAV."""
+    resolved_ffmpeg = ffmpeg_binary
+    if ffmpeg_binary == "ffmpeg" and shutil.which(ffmpeg_binary) is None:
+        try:
+            import imageio_ffmpeg
+        except ImportError as error:
+            raise RuntimeError("FFmpeg is required for browser-audio transcription.") from error
+        resolved_ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
     command = (
-        ffmpeg_binary,
+        resolved_ffmpeg,
         "-nostdin",
         "-hide_banner",
         "-loglevel",
@@ -117,12 +126,16 @@ def _wav_duration_and_frames(wav_bytes: bytes) -> tuple[int, bytes]:
                     "invalid_pcm_audio", "Audio conversion produced invalid PCM."
                 )
             frame_count = wav_file.getnframes()
-            duration_ms = round(frame_count * 1000 / wav_file.getframerate())
+            pcm_frames = wav_file.readframes(frame_count)
+            bytes_per_second = (
+                wav_file.getframerate() * wav_file.getnchannels() * wav_file.getsampwidth()
+            )
+            duration_ms = round(len(pcm_frames) * 1000 / bytes_per_second)
             if duration_ms > MAX_AUDIO_SECONDS * 1000:
                 raise AudioValidationError(
                     "audio_too_long", f"Audio must be at most {MAX_AUDIO_SECONDS} seconds."
                 )
-            return duration_ms, wav_file.readframes(frame_count)
+            return duration_ms, pcm_frames
     except wave.Error as error:
         raise AudioValidationError(
             "invalid_pcm_audio", "Audio conversion produced invalid PCM."
@@ -174,15 +187,23 @@ def transcribe_webm_audio(
         raise RuntimeError("The configured Vosk model directory is unavailable.")
     wav_bytes = convert_to_pcm_wav(audio, ffmpeg_binary=ffmpeg_binary)
     try:
-        from vosk import KaldiRecognizer, Model  # type: ignore[import-not-found]
+        from vosk import KaldiRecognizer
     except ImportError as error:
         raise RuntimeError(
             "Install the api dependency group to enable Vosk transcription."
         ) from error
-    model = Model(str(model_path))
+    model = _load_vosk_model(str(model_path))
     recognizer = KaldiRecognizer(model, 16000)
     return transcribe_pcm_wav(
         wav_bytes,
         recognizer=recognizer,
         asr_model_version=asr_model_version,
     )
+
+
+@lru_cache(maxsize=2)
+def _load_vosk_model(model_path: str) -> object:
+    """Load each immutable Vosk model once per server process."""
+    from vosk import Model
+
+    return Model(model_path)

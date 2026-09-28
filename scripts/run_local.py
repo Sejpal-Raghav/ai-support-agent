@@ -13,6 +13,9 @@ def main() -> None:
         raise SystemExit("Run `npm run build` in frontend first.")
     os.environ["DEMO_CASES_PATH"] = "artifacts/demo_cases.jsonl"
     os.environ["STATIC_DIR"] = "frontend/dist"
+    vosk_model = Path("artifacts/models/vosk-model-en-us-0.22-lgraph")
+    if vosk_model.is_dir():
+        os.environ["VOSK_MODEL_PATH"] = str(vosk_model)
     import uvicorn
 
     uvicorn.run("support_agent.api.app:app", host="127.0.0.1", port=7860, reload=False)
