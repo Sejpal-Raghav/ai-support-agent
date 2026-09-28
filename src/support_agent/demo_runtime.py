@@ -45,6 +45,22 @@ _URL = re.compile(r"https?://\S+")
 _DIRECT_NAME = re.compile(r",\s+[A-Z][a-z]{1,20}(?=[!,.])")
 _AGENT_SIGNATURE = re.compile(r"\s*\^[A-Z]{1,3}\s*$")
 _UNSAFE = re.compile(r"\b(password|passcode|pin|cvv|card number|social security)\b", re.I)
+_CUSTOMER_PROBLEM = re.compile(
+    r"\b(help|issue|problem|wrong|damag|broken|defect|missing|late|delay|lost|"
+    r"refund|return|cancel|change|charged|declin|cannot|can't|won't|not|never|"
+    r"where|when|how|why|stock|available)\w*\b|\?",
+    re.I,
+)
+_CUSTOMER_PRAISE = re.compile(
+    r"\b(thank|appreciat|amazing|great|excellent|love|merry christmas|happy holiday)\w*\b",
+    re.I,
+)
+_REPLY_SUPPORT = re.compile(
+    r"\b(sorry|apolog|help|assist|check|look into|investigat|contact|send|share|"
+    r"refund|return|replace|order|delivery|carrier|account|payment|cancel|stock)\w*\b",
+    re.I,
+)
+_REPLY_SOCIAL = re.compile(r"\b(merry christmas|happy holiday|glad you|our pleasure)\b", re.I)
 
 
 @dataclass(frozen=True)
@@ -55,13 +71,26 @@ class DemoCase:
     intent_id: str
 
 
+def is_support_exchange(customer_text: str, reply_text: str) -> bool:
+    """Keep problem-solving exchanges and reject praise/social chatter."""
+    has_problem = bool(_CUSTOMER_PROBLEM.search(customer_text))
+    praise_only = bool(_CUSTOMER_PRAISE.search(customer_text)) and not has_problem
+    useful_reply = bool(_REPLY_SUPPORT.search(reply_text))
+    social_reply = bool(_REPLY_SOCIAL.search(reply_text))
+    return has_problem and not praise_only and useful_reply and not social_reply
+
+
 def sanitize_historical_reply(text: str) -> str:
     """Remove user handles and links before showing a public historical reply."""
     cleaned = _HANDLE.sub("", text)
     cleaned = _URL.sub("", cleaned)
     cleaned = _DIRECT_NAME.sub("", cleaned)
     cleaned = _AGENT_SIGNATURE.sub("", cleaned).strip()
-    return re.sub(r"\s+", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    cleaned = re.sub(r"\s+([,.;!?])", r"\1", cleaned)
+    cleaned = re.sub(r"\b(here|at):\s+(?=[A-Z])", r"\1. ", cleaned)
+    cleaned = re.sub(r"\s*([:,-])\s*$", "", cleaned)
+    return cleaned.strip()
 
 
 class DemoSupportEngine:
@@ -114,7 +143,7 @@ class DemoSupportEngine:
         best = max(candidates, key=lambda index: float(similarities[index]))
         case = self._cases[best]
         reply = sanitize_historical_reply(case.reply_text)
-        if float(similarities[best]) < 0.30 or not reply or _UNSAFE.search(reply):
+        if float(similarities[best]) < 0.45 or not reply or _UNSAFE.search(reply):
             return ChatResult(
                 intent=intent_id,
                 confidence=confidence,

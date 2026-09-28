@@ -10,7 +10,11 @@ from pathlib import Path
 import pandas as pd
 import typer
 
-from support_agent.demo_runtime import INTENT_SEEDS, sanitize_historical_reply
+from support_agent.demo_runtime import (
+    INTENT_SEEDS,
+    is_support_exchange,
+    sanitize_historical_reply,
+)
 
 app = typer.Typer(add_completion=False)
 
@@ -30,7 +34,6 @@ PATTERNS = {
         r"\b(stock|available|product|item|size|colour|color)\w*\b", re.I
     ),
 }
-
 
 def intent_for(text: str) -> str | None:
     matches = [intent for intent, pattern in PATTERNS.items() if pattern.search(text)]
@@ -60,10 +63,10 @@ def main(
         if intent is None or len(selected[intent]) >= per_intent:
             continue
         raw_reply = str(row.text)
-        if re.search(r"https?://", raw_reply, flags=re.IGNORECASE):
+        if not is_support_exchange(customer_text, raw_reply):
             continue
         reply = sanitize_historical_reply(raw_reply)
-        if len(reply) < 12:
+        if len(reply) < 20 or reply.rstrip().endswith((":", "here", "at")):
             continue
         selected[intent].append(
             {
