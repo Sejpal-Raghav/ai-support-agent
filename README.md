@@ -1,60 +1,104 @@
-# Hiver Support Agent
+# Voice-Enabled Support Chatbot
 
-An auditable selective-prediction prototype for one Twitter-support brand. It classifies a
-customer turn, retrieves only safe historical train cases, drafts an evidence-cited reply, and
-escalates whenever the validation-selected safety policy is not satisfied.
+A localhost-ready voice support chatbot grounded in real AmazonHelp conversations from Kaggle's
+Customer Support on Twitter dataset. It accepts microphone or typed input, displays the recognized
+speech, predicts one of six support intents with a neural sentence encoder, retrieves a similar
+historical resolution, and shows the evidence case ID behind its response.
 
-## Reproduce the reported results
+## What works now
 
-The submission must include populated `data/frozen/` artifacts. From a clean checkout, cached
-reproduction takes seconds and makes no network or API calls:
+- Browser speech recognition in Chrome/Edge, with a Vosk backend endpoint ready for deployment.
+- Neural intent classification using `sentence-transformers/all-MiniLM-L6-v2`.
+- Retrieval over 857 sanitized customer-to-AmazonHelp reply pairs from the local Twitter subset.
+- Safe fallback for low-confidence, weak-evidence, or credential-related requests.
+- React/Vite interface and FastAPI backend served from one process.
+- Docker definition for a Hugging Face Docker Space.
 
-```text
-uv sync --frozen --extra eval
-uv run python scripts/reproduce.py --config configs/pipeline.yaml --mode cached --verify-hashes
+The repository also contains a BERTweet fine-tuning path. MiniLM powers the current demo because
+the hand-reviewed taxonomy labels required for defensible fine-tuning have not been completed.
+
+## Run the localhost demo
+
+Requirements: Python 3.11, `uv`, Node.js 20+, and Chrome or Edge.
+
+```powershell
+uv sync --frozen --extra data --extra ml --extra api --extra dev
+cd frontend
+npm ci
+npm run build
+cd ..
+uv run --extra ml --extra api python scripts/run_local.py
 ```
 
-The command checks every frozen artifact hash before printing `headline_metrics.json`. Required
-frozen files are documented in [MANIFEST_FORMAT.md](data/frozen/MANIFEST_FORMAT.md).
+Open [http://127.0.0.1:7860](http://127.0.0.1:7860). The first launch downloads and caches the
+MiniLM model. Allow microphone access, press **Talk**, speak for less than 30 seconds, and press
+**Stop**. Typed input remains available when browser speech recognition is unavailable.
 
-## Full pipeline prerequisites
+### Build the local evidence corpus from scratch
 
-Download Kaggle's `twcs.csv` into the expected local path, then run the remaining commands after
-completing the human review packets. The raw dataset and human labels are intentionally not
-versioned.
+Place Kaggle's `twcs.csv` at `data/raw/twcs.csv`, then run:
 
-```text
-uv sync --extra data --extra ml --extra api --extra dev
-uv run python scripts/download_dataset.py
-uv run python scripts/select_brand.py
-uv run python scripts/build_cohort.py
-uv run python scripts/derive_taxonomy.py
-# Complete data/annotations/cluster_review.csv, then rerun derive_taxonomy with --review-csv.
-uv run python scripts/generate_provisional_labels.py --partition validation
-uv run python scripts/export_annotations.py --kind validation
-# Complete and validate the three validation packets.
-uv run python scripts/train_models.py
-uv run python scripts/build_retrieval_index.py
+```powershell
+uv run --extra data python scripts/ingest_local_demo.py
+uv run --extra data python scripts/build_local_demo.py
 ```
 
-`download_dataset.py` calls
-`kagglehub.dataset_download("thoughtvector/customer-support-on-twitter")`, validates the source
-columns, and copies the downloaded `twcs.csv` to `data/raw/twcs.csv`. Kaggle may prompt you to
-authenticate; follow Kaggle's local API-token or browser-authentication instructions. The command
-refuses to replace an existing CSV unless you explicitly pass `--overwrite`. If you download the
-archive manually instead, extract it and copy `twcs.csv` to `data/raw/twcs.csv`.
+The first command deterministically ingests the leading 750,000 source rows. The second extracts
+up to 150 direct AmazonHelp customer/reply pairs for each supported intent. Raw data and generated
+artifacts are intentionally ignored by Git.
 
-The final evaluation runner writes `headline_metrics.json`, `example_evaluations.jsonl`, and
-`evaluation_result.json`; freeze exactly those files with `scripts/freeze_results.py` before
-submitting. The report does not claim results until this data-dependent process is run.
+To download the Kaggle dataset instead of copying it manually:
 
-## Guardrails and scope
+```powershell
+uv run --extra data python scripts/download_dataset.py
+```
 
-- All splits are chronological by reconstructed thread; retrieval indexes train cases only.
-- Historical evidence is preserved by case ID, source thread/tweet IDs, and source URI.
-- A hard-risk keyword or failed draft validation always escalates.
-- The system drafts proposed replies only. It never posts, authenticates, accesses private data,
-  or takes account actions.
+## Supported intents
 
-See [report.md](report.md) for the reviewer report and [decision_log.md](decision_log.md) for
-the implementation decisions.
+| Intent | Typical request |
+|---|---|
+| `delivery_tracking` | Late, missing, or incorrectly delivered package |
+| `return_refund` | Return or refund request |
+| `damaged_or_wrong_item` | Damaged, defective, or incorrect product |
+| `account_or_payment` | Account access, charges, or payment problems |
+| `order_change_or_cancel` | Cancel or modify an order/address |
+| `product_or_stock` | Availability or product information |
+
+## API
+
+- `GET /api/health` reports ASR, classifier, and retrieval readiness.
+- `POST /api/transcribe` accepts WebM/OGG/WAV audio up to 10 MB and 30 seconds when a Vosk model
+  is configured through `VOSK_MODEL_PATH`.
+- `POST /api/respond` accepts `{"text":"...","session_id":"optional"}` and returns intent,
+  confidence, action, response, reasons, evidence IDs, model versions, and latency.
+
+## Verification
+
+```powershell
+uv run --extra api pytest -q
+uv run ruff check src scripts tests
+cd frontend
+npm run build
+npm audit --omit=dev
+```
+
+Current local verification: 52 Python tests pass; the frontend production build succeeds and its
+dependency audit reports zero vulnerabilities.
+
+## Safety and privacy boundaries
+
+- The chatbot never posts messages or performs account actions.
+- Historical handles, direct customer names, URLs, and agent signatures are removed from replies.
+- Credential-related historical replies are never returned automatically.
+- Uploaded audio is converted in memory and is not retained or logged.
+- Low-confidence or weak-evidence messages produce a visible fallback.
+
+## Deployment
+
+`Dockerfile` builds the React assets and serves them from FastAPI on port `7860`. The Hugging Face
+Space metadata and deployment notes are in `deployment/huggingface/README.md`. A public deployment
+still requires a Hugging Face account, the Vosk model directory, and generated demo/model artifacts.
+
+See [docs/voice_assignment_requirements.md](docs/voice_assignment_requirements.md) for the
+requirement-to-evidence matrix. Reported evaluation results must come from held-out human labels
+and voice recordings; this README does not invent metrics that have not been measured.

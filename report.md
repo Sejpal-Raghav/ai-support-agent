@@ -1,85 +1,58 @@
-# AI Support Agent for `<Selected Brand>`
+# Voice-Enabled Support Chatbot — Brief Report
 
-This report is intentionally empty until Phase 8. Its required section order is
-fixed by the approved implementation plan.
-# Report — Hiver Support Agent
+## Problem and scope
 
-## 1. Problem framing and scope
+The application accepts an English support request by microphone or text, displays the recognized
+speech, classifies its intent with a neural language model, and retrieves a response from a real
+AmazonHelp exchange. It is a demonstration system: it does not authenticate users, access private
+accounts, complete transactions, or post replies.
 
-The agent supports one brand selected by documented EDA, not a pre-chosen brand. “Good” means
-automating only public, low-risk messages with a historically supported resolution pattern; it
-does not mean maximizing reply volume. The prototype does not authenticate customers, access
-private data, take account actions, post to Twitter, infer live status, or attempt unsupported
-rare intents.
+## Dataset
 
-## 2. Data, split, and golden-set design
+The source is Kaggle's Customer Support on Twitter dataset. A deterministic leading subset of
+750,000 validated messages contains 411,965 inbound messages and 59,254 AmazonHelp outbound
+messages. The demo builder links direct inbound customer messages to AmazonHelp replies using
+`in_response_to_tweet_id`, assigns one unambiguous keyword-derived intent, removes unsafe or
+URL-dependent replies, and caps each intent at 150 cases. The current local corpus contains 857
+historical cases across six intents.
 
-The fixed 12,000-thread cohort is hash-sampled after EDA selection, then split chronologically by
-full reconstructed thread: 70% train, 15% validation, 15% test. The 200-example golden set is
-drawn only from test: target 100 edge/risk-flagged and 100 non-edge examples, with documented
-inverse-probability weights. The primary annotator labels intent, ambiguity, escalation need and
-reason, required/forbidden reply elements, and later retrieval adequacy. A blind 10% re-rate
-checks annotation consistency.
+## Architecture and methodology
 
-## 3. System
+The browser uses Chrome/Edge Speech Recognition when available. The backend also exposes a Vosk
+audio endpoint for deployment with `vosk-model-en-us-0.22-lgraph`. Recognized text is encoded by
+`sentence-transformers/all-MiniLM-L6-v2`. Intent is selected by cosine similarity to curated intent
+descriptions, and the nearest same-intent historical customer request supplies the response.
 
-The main classifier is MiniLM embeddings plus balanced logistic regression, selected on 100
-dedicated validation labels and temperature-scaled using a disjoint 100-label calibration set.
-Retrieval uses FAISS `IndexFlatIP` over only safe, resolved train cases and returns at most three
-same-intent, different-thread cases after MMR reranking. The reply drafter is evidence-only and
-must cite retrieved case IDs. A deterministic validator and selective-prediction policy fail
-closed on unsupported claims, hard-risk signals, or uncertainty.
+Replies are stripped of handles, direct customer names, URLs, and agent signatures. Low intent
+confidence, weak retrieval similarity, absent evidence, or credential-related text causes a safe
+fallback. Every normal response includes its historical case ID.
 
-## 4. Baselines and results
+The repository includes a BERTweet fine-tuning implementation for the final supervised model. It
+is not presented as trained until the required human-reviewed labels exist.
 
-Populate this section only after the frozen run is created. Report all numbers with stratified
-bootstrap 95% intervals, not just point estimates.
+## Current results
 
-| System | Intent macro-F1 | Auto coverage | Acceptable replies | Escalation recall | Auto error |
-|---|---:|---:|---:|---:|---:|
-| Majority + fixed acknowledgement + always escalate | pending frozen run | 0% | N/A | 100% | 0% |
-| TF-IDF + nearest historical reply + keyword/confidence rule | pending frozen run | pending | pending | pending | pending |
-| MiniLM + retrieval-grounded drafter + selective policy | pending frozen run | pending | pending | pending | pending |
+- 52 Python tests pass; lint passes.
+- React production build succeeds and `npm audit --omit=dev` reports zero vulnerabilities.
+- Local page, health endpoint, normal-response path, and unrelated-request fallback were smoke
+  tested successfully.
+- Example: “my order is late and tracking has not changed” was classified as
+  `delivery_tracking` with 0.878 semantic confidence and answered using case
+  `AmazonHelp:128727` in 134 ms after model warm-up.
 
-Headline template: “At a fixed safety target, the agent can auto-handle **X%** of eligible
-messages (95% CI **[L, U]**), with **Y%** acceptable replies and **Z%** recall on cases requiring
-escalation.”
+These are engineering checks, not a held-out accuracy claim. Macro-F1, WER, and end-to-end task
+success remain unreported until the planned independent human labels and multi-speaker recordings
+are collected.
 
-## 5. Reply evaluation and judge agreement
+## Limitations
 
-The judge uses a model/prompt separate from the drafter and is blinded to system identity. It
-scores relevance, grounding, usefulness, tone, and safety 1–4; acceptance requires all first four
-dimensions ≥3, safety =4, and no critical violation. An independent human blind-rates at least 50
-items; report Cohen’s kappa for accept/reject and quadratic-weighted kappa for ordinal overall
-quality. Both statistics are pending the human ratings.
+Keyword-derived corpus labels can be noisy, semantic confidence is not calibrated probability,
+and historical Twitter replies can be context-dependent. Browser speech recognition varies by
+browser and may use an external browser service. The current demo supports English and six common
+intents only. It must not be used for real customer account decisions.
 
-## 6. Failure analysis
+## Deployment
 
-Populate the five rows with real golden examples after the frozen evaluation. Each row must link
-the example ID, evidence case IDs, observed failure, and causal hypothesis.
-
-| Rank | Golden example ID | Failure | Causal hypothesis | Mitigation |
-|---:|---|---|---|---|
-| 1 | pending | pending | pending | pending |
-| 2 | pending | pending | pending | pending |
-| 3 | pending | pending | pending | pending |
-| 4 | pending | pending | pending | pending |
-| 5 | pending | pending | pending | pending |
-
-## 7. What is misleading about my headline number?
-
-Coverage is measured only among the selected brand’s public, English-capable, evidence-supported
-decision points; it is not the fraction of all support work that can be automated. The gold set is
-stratified and weighted, but 200 examples still yield uncertainty, especially for rare hard-risk
-cases. The policy threshold is selected on validation data and can overfit that limited partition.
-Finally, a reply-quality judge is a proxy: agreement with independent human ratings must accompany
-the headline, and it does not make the system safe for account actions.
-
-## 8. One more week
-
-1. Double the independent human ratings and adjudicate disagreements.
-2. Audit all false auto-handles and turn the common causes into explicit policy features.
-3. Add a retriever re-ranking ablation and label retrieval adequacy on more calibration cases.
-4. Re-run the full pipeline on a second time slice to test temporal robustness.
-5. Build a human-review UI that displays cited case links, risk signals, and the draft validator’s
-   reasons; it would still not send messages automatically.
+The local service runs at `http://127.0.0.1:7860`. The Dockerfile builds the React client and
+FastAPI service for a Hugging Face Docker Space. Public deployment additionally requires the
+account-owned Space and inference artifacts; raw Twitter data and recordings must not be uploaded.
