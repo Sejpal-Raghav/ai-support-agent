@@ -32,8 +32,32 @@ function App() {
 
   const stopRecording = () => recorderRef.current?.stop();
 
+  const finishTranscript = async (transcript) => {
+    setState((current) => ({ ...current, transcript, status: "thinking" }));
+    try {
+      const result = await respond(transcript);
+      setState({ status: "complete", transcript, result, error: "" });
+    } catch (error) {
+      setState((current) => ({ ...current, status: "idle", error: error.message }));
+    }
+  };
+
   const startRecording = async () => {
     try {
+      const BrowserRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (BrowserRecognition) {
+        const recognition = new BrowserRecognition();
+        recognition.lang = "en-US";
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        recorderRef.current = recognition;
+        recognition.onresult = (event) => finishTranscript(event.results[0][0].transcript);
+        recognition.onerror = () => setState({ ...initialState, error: "Speech was not recognized. Try again or type your request." });
+        recognition.onend = () => recorderRef.current = null;
+        recognition.start();
+        setState({ ...initialState, status: "recording" });
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const chunks = [];
       const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
@@ -45,9 +69,7 @@ function App() {
         setState((current) => ({ ...current, status: "transcribing" }));
         try {
           const transcript = await transcribe(new Blob(chunks, { type: "audio/webm" }));
-          setState((current) => ({ ...current, transcript, status: "thinking" }));
-          const result = await respond(transcript);
-          setState({ status: "complete", transcript, result, error: "" });
+          await finishTranscript(transcript);
         } catch (error) {
           setState((current) => ({ ...current, status: "idle", error: error.message }));
         }

@@ -98,8 +98,12 @@ def create_app(
 
     @app.get("/api/health", response_model=HealthPayload)
     def health() -> HealthPayload:
-        return readiness() if readiness else HealthPayload(
-            status="degraded", asr_ready=False, classifier_ready=False, retrieval_ready=False
+        return (
+            readiness()
+            if readiness
+            else HealthPayload(
+                status="degraded", asr_ready=False, classifier_ready=False, retrieval_ready=False
+            )
         )
 
     @app.post("/api/transcribe")
@@ -151,4 +155,34 @@ def build_vosk_transcriber(model_path: Path) -> Transcriber:
     return transcriber
 
 
-app = create_app(static_dir=Path(os.environ["STATIC_DIR"]) if "STATIC_DIR" in os.environ else None)
+def build_application() -> FastAPI:
+    """Wire optional local artifacts without making imports download or train models."""
+    static_dir = Path(os.environ["STATIC_DIR"]) if "STATIC_DIR" in os.environ else None
+    cases_path = os.environ.get("DEMO_CASES_PATH")
+    vosk_path = os.environ.get("VOSK_MODEL_PATH")
+    responder: ChatResponder | None = None
+    transcriber: Transcriber | None = None
+    if cases_path:
+        from support_agent.demo_runtime import DemoSupportEngine
+
+        responder = DemoSupportEngine(Path(cases_path))
+    if vosk_path:
+        transcriber = build_vosk_transcriber(Path(vosk_path))
+
+    def readiness() -> HealthPayload:
+        return HealthPayload(
+            status="ready" if responder and transcriber else "degraded",
+            asr_ready=transcriber is not None,
+            classifier_ready=responder is not None,
+            retrieval_ready=responder is not None,
+        )
+
+    return create_app(
+        responder=responder,
+        transcriber=transcriber,
+        readiness=readiness,
+        static_dir=static_dir,
+    )
+
+
+app = build_application()
