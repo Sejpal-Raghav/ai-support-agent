@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
-from support_agent.evaluation.judge import judge_reply, normalize_judge_payload
 from support_agent.evaluation.metrics import (
     expected_calibration_error,
     judge_agreement,
     weighted_intent_f1,
 )
-from support_agent.schemas import ExampleEvaluationRecord, JudgeScores, RetrievedCase
+from support_agent.schemas import ExampleEvaluationRecord, JudgeScores
 
 
 def _record(index: int, correct: bool) -> ExampleEvaluationRecord:
@@ -29,34 +26,6 @@ def _record(index: int, correct: bool) -> ExampleEvaluationRecord:
     )
 
 
-class _FakeJudge:
-    def create(self, *, instructions: str, input_text: str) -> str:
-        assert "You are an independent quality rater" in instructions
-        assert "proposed_reply" in input_text
-        return (
-            '{"relevance":4,"grounding":4,"usefulness":3,"tone":4,"safety":4,'
-            '"critical_violation":false,"critical_violation_category":null,'
-            '"rationale":"Grounded."}'
-        )
-
-
-def _case() -> RetrievedCase:
-    return RetrievedCase(
-        case_id="case_1",
-        source_thread_id="thread_source",
-        customer_tweet_id="customer_source",
-        brand_reply_tweet_id="reply_source",
-        customer_text="app issue",
-        brand_reply_text="restart app",
-        intent_id="intent_a",
-        similarity=0.9,
-        mmr_score=0.9,
-        rank=1,
-        source_uri="tweet://customer_source",
-        index_version="fixture",
-    )
-
-
 def test_weighted_f1_and_ece_are_deterministic() -> None:
     macro, per_class = weighted_intent_f1(
         [_record(1, True), _record(2, False)], ["intent_a", "intent_b"]
@@ -64,23 +33,6 @@ def test_weighted_f1_and_ece_are_deterministic() -> None:
     assert 0.0 <= macro <= 1.0
     assert set(per_class) == {"intent_a", "intent_b"}
     assert expected_calibration_error([0.9, 0.1], [True, False], [1.0, 1.0]) == pytest.approx(0.1)
-
-
-def test_blind_judge_derives_acceptance_and_caches(tmp_path: Path) -> None:
-    first = judge_reply(
-        "CUSTOMER: app issue",
-        "Try restarting the app.",
-        [_case()],
-        "judge-fixture",
-        tmp_path,
-        _FakeJudge(),
-    )
-    second = judge_reply(
-        "CUSTOMER: app issue", "Try restarting the app.", [_case()], "judge-fixture", tmp_path
-    )
-    assert first.scores.accepted
-    assert second.from_cache
-    assert normalize_judge_payload.__name__ == "normalize_judge_payload"
 
 
 def test_judge_agreement_requires_and_scores_fifty_independent_ratings() -> None:

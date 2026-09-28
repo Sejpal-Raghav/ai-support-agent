@@ -59,7 +59,10 @@ def main(
         intent = intent_for(customer_text)
         if intent is None or len(selected[intent]) >= per_intent:
             continue
-        reply = sanitize_historical_reply(str(row.text))
+        raw_reply = str(row.text)
+        if re.search(r"https?://", raw_reply, flags=re.IGNORECASE):
+            continue
+        reply = sanitize_historical_reply(raw_reply)
         if len(reply) < 12:
             continue
         selected[intent].append(

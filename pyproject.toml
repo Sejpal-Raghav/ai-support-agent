@@ -45,9 +45,7 @@ ml = [
 ]
 api = [
   "fastapi==0.115.8",
-  "openai==1.63.2",
   "python-multipart==0.0.20",
-  "tenacity==9.0.0",
   "uvicorn==0.34.0",
   "vosk==0.3.45",
 ]
