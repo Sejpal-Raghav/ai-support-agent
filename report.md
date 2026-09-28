@@ -12,9 +12,9 @@ accounts, complete transactions, or post replies.
 The source is Kaggle's Customer Support on Twitter dataset. A deterministic leading subset of
 750,000 validated messages contains 411,965 inbound messages and 59,254 AmazonHelp outbound
 messages. The demo builder links direct inbound customer messages to AmazonHelp replies using
-`in_response_to_tweet_id`, assigns one unambiguous keyword-derived intent, removes unsafe or
-URL-dependent replies, and caps each intent at 150 cases. The current local corpus contains 857
-historical cases across six intents.
+`in_response_to_tweet_id`, assigns one unambiguous keyword-derived intent, removes praise-only,
+social, and non-actionable exchanges, sanitizes URL-dependent text, and caps each intent at 150
+cases. The current local corpus contains 896 historical cases across six intents.
 
 ## Architecture and methodology
 
@@ -32,10 +32,13 @@ is not presented as trained until the required human-reviewed labels exist.
 
 ## Current results
 
-- 52 Python tests pass; lint passes.
+- 56 Python tests pass; lint passes.
 - React production build succeeds and `npm audit --omit=dev` reports zero vulnerabilities.
 - Local page, health endpoint, normal-response path, and unrelated-request fallback were smoke
   tested successfully.
+- Example: “I received the wrong item in my order” was classified as
+  `damaged_or_wrong_item`, answered with return guidance, and displayed evidence case
+  `AmazonHelp:73459`. “Tell me a joke about space” produced a low-confidence fallback.
 - Example: “my order is late and tracking has not changed” was classified as
   `delivery_tracking` with 0.878 semantic confidence and answered using case
   `AmazonHelp:128727` in 134 ms after model warm-up.

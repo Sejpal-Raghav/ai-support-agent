@@ -17,8 +17,9 @@
 8. **Retrieve only within the predicted intent.** This reduces fluent but topically wrong replies.
 9. **Preserve an evidence case ID for every normal response.** Reviewers can audit which historical
    exchange supported the output.
-10. **Exclude URL-dependent historical replies.** Removing a URL can make the remaining response
-    incomplete or misleading.
+10. **Filter for problem-solving exchanges before retrieval.** Praise-only/social conversations
+    and replies without a support action are excluded; URLs are sanitized and dangling punctuation
+    is repaired so useful guidance is not discarded solely because the original contained a link.
 11. **Sanitize identity residue.** Handles, customer names, URLs, and agent signatures are removed
     before historical text reaches the UI.
 12. **Fail closed on weak confidence or unsafe content.** The chatbot displays a fallback instead

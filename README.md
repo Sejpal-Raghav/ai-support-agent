@@ -9,7 +9,8 @@ historical resolution, and shows the evidence case ID behind its response.
 
 - Browser speech recognition in Chrome/Edge, with a Vosk backend endpoint ready for deployment.
 - Neural intent classification using `sentence-transformers/all-MiniLM-L6-v2`.
-- Retrieval over 857 sanitized customer-to-AmazonHelp reply pairs from the local Twitter subset.
+- Retrieval over 896 sanitized, problem-solving customer-to-AmazonHelp reply pairs from the local
+  Twitter subset.
 - Safe fallback for low-confidence, weak-evidence, or credential-related requests.
 - React/Vite interface and FastAPI backend served from one process.
 - Docker definition for a Hugging Face Docker Space.
@@ -82,13 +83,15 @@ npm run build
 npm audit --omit=dev
 ```
 
-Current local verification: 52 Python tests pass; the frontend production build succeeds and its
+Current local verification: 56 Python tests pass; the frontend production build succeeds and its
 dependency audit reports zero vulnerabilities.
 
 ## Safety and privacy boundaries
 
 - The chatbot never posts messages or performs account actions.
 - Historical handles, direct customer names, URLs, and agent signatures are removed from replies.
+- Praise-only and social exchanges are excluded, and historical replies must contain a support
+  action before they can enter the evidence corpus.
 - Credential-related historical replies are never returned automatically.
 - Uploaded audio is converted in memory and is not retained or logged.
 - Low-confidence or weak-evidence messages produce a visible fallback.
