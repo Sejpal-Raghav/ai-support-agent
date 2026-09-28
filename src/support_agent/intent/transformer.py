@@ -60,7 +60,7 @@ def train_transformer(
         max_length=config.max_length,
     )
 
-    class TrainingDataset(Dataset):
+    class TrainingDataset(Dataset[dict[str, torch.Tensor]]):
         def __len__(self) -> int:
             return len(records)
 
@@ -131,7 +131,7 @@ class TransformerIntentPredictor:
         distribution = {
             str(labels[index]): float(value) for index, value in enumerate(probabilities)
         }
-        intent_id = max(distribution, key=distribution.get)
+        intent_id = max(distribution, key=lambda label: distribution[label])
         return TransformerPrediction(
             intent_id, distribution[intent_id], distribution, self._version
         )
