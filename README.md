@@ -9,7 +9,7 @@ historical resolution, and shows the evidence case ID behind its response.
 
 - Browser speech recognition in Chrome/Edge, with a Vosk backend endpoint ready for deployment.
 - Neural intent classification using `sentence-transformers/all-MiniLM-L6-v2`.
-- Retrieval over 896 sanitized, problem-solving customer-to-AmazonHelp reply pairs from the local
+- Retrieval over 900 sanitized, problem-solving customer-to-AmazonHelp reply pairs from the local
   Twitter subset.
 - Safe fallback for low-confidence, weak-evidence, or credential-related requests.
 - React/Vite interface and FastAPI backend served from one process.

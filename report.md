@@ -14,7 +14,7 @@ The source is Kaggle's Customer Support on Twitter dataset. A deterministic lead
 messages. The demo builder links direct inbound customer messages to AmazonHelp replies using
 `in_response_to_tweet_id`, assigns one unambiguous keyword-derived intent, removes praise-only,
 social, and non-actionable exchanges, sanitizes URL-dependent text, and caps each intent at 150
-cases. The current local corpus contains 896 historical cases across six intents.
+cases. The current local corpus contains 900 historical cases across six intents.
 
 ## Architecture and methodology
 
