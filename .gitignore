@@ -23,3 +23,5 @@ artifacts/*
 # Frontend build outputs
 frontend/node_modules/
 frontend/dist/
+
+AGENTS.md
