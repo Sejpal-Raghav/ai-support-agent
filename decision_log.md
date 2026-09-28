@@ -24,8 +24,8 @@
     before historical text reaches the UI.
 12. **Fail closed on weak confidence or unsafe content.** The chatbot displays a fallback instead
     of forcing an answer.
-13. **Use browser recognition for localhost and Vosk for self-hosted deployment.** This provides an
-    immediately testable demo while retaining a private, portable backend ASR path.
+13. **Use recorder-first browser audio with local Vosk transcription.** This avoids dependence on
+    inconsistent browser speech services and keeps audio processing within the application.
 14. **Serve React and FastAPI from one process.** One origin avoids CORS and independent release
     drift during evaluation.
 15. **Do not invent evaluation results.** Engineering smoke tests are reported separately from the

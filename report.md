@@ -18,8 +18,8 @@ cases. The current local corpus contains 900 historical cases across six intents
 
 ## Architecture and methodology
 
-The browser uses Chrome/Edge Speech Recognition when available. The backend also exposes a Vosk
-audio endpoint for deployment with `vosk-model-en-us-0.22-lgraph`. Recognized text is encoded by
+The browser records microphone audio and sends it to the backend, which transcribes it locally with
+`vosk-model-en-us-0.22-lgraph`. Recognized text is encoded by
 `sentence-transformers/all-MiniLM-L6-v2`. Intent is selected by cosine similarity to curated intent
 descriptions, and the nearest same-intent historical customer request supplies the response.
 
@@ -32,10 +32,12 @@ is not presented as trained until the required human-reviewed labels exist.
 
 ## Current results
 
-- 56 Python tests pass; lint passes.
+- 58 Python tests pass; lint passes.
 - React production build succeeds and `npm audit --omit=dev` reports zero vulnerabilities.
 - Local page, health endpoint, normal-response path, and unrelated-request fallback were smoke
   tested successfully.
+- A real browser microphone recording was accepted by the local Vosk endpoint, transcribed, and
+  passed through the intent/fallback policy; all readiness signals reported `true`.
 - Example: “I received the wrong item in my order” was classified as
   `damaged_or_wrong_item`, answered with return guidance, and displayed evidence case
   `AmazonHelp:73459`. “Tell me a joke about space” produced a low-confidence fallback.
@@ -50,8 +52,8 @@ are collected.
 ## Limitations
 
 Keyword-derived corpus labels can be noisy, semantic confidence is not calibrated probability,
-and historical Twitter replies can be context-dependent. Browser speech recognition varies by
-browser and may use an external browser service. The current demo supports English and six common
+and historical Twitter replies can be context-dependent. Vosk accuracy varies with microphone and
+background noise. The current demo supports English and six common
 intents only. It must not be used for real customer account decisions.
 
 ## Deployment

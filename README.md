@@ -24,6 +24,7 @@ Requirements: Python 3.11, `uv`, Node.js 20+, and Chrome or Edge.
 
 ```powershell
 uv sync --frozen --extra data --extra ml --extra api --extra dev
+uv run --extra api python scripts/download_vosk_model.py
 cd frontend
 npm ci
 npm run build
@@ -33,7 +34,7 @@ uv run --extra ml --extra api python scripts/run_local.py
 
 Open [http://127.0.0.1:7860](http://127.0.0.1:7860). The first launch downloads and caches the
 MiniLM model. Allow microphone access, press **Talk**, speak for less than 30 seconds, and press
-**Stop**. Typed input remains available when browser speech recognition is unavailable.
+**Stop**. The browser recording is transcribed locally by Vosk; typed input remains available.
 
 ### Build the local evidence corpus from scratch
 
@@ -68,8 +69,8 @@ uv run --extra data python scripts/download_dataset.py
 ## API
 
 - `GET /api/health` reports ASR, classifier, and retrieval readiness.
-- `POST /api/transcribe` accepts WebM/OGG/WAV audio up to 10 MB and 30 seconds when a Vosk model
-  is configured through `VOSK_MODEL_PATH`.
+- `POST /api/transcribe` accepts WebM/OGG/WAV audio up to 10 MB and 30 seconds. `run_local.py`
+  automatically configures the pinned downloaded Vosk model; deployments may set `VOSK_MODEL_PATH`.
 - `POST /api/respond` accepts `{"text":"...","session_id":"optional"}` and returns intent,
   confidence, action, response, reasons, evidence IDs, model versions, and latency.
 
@@ -83,7 +84,7 @@ npm run build
 npm audit --omit=dev
 ```
 
-Current local verification: 56 Python tests pass; the frontend production build succeeds and its
+Current local verification: 58 Python tests pass; the frontend production build succeeds and its
 dependency audit reports zero vulnerabilities.
 
 ## Safety and privacy boundaries
