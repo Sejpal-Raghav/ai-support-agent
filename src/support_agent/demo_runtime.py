@@ -89,7 +89,9 @@ def sanitize_historical_reply(text: str) -> str:
     cleaned = re.sub(r"\s+", " ", cleaned)
     cleaned = re.sub(r"\s+([,.;!?])", r"\1", cleaned)
     cleaned = re.sub(r"\b(here|at):\s+(?=[A-Z])", r"\1. ", cleaned)
+    cleaned = re.sub(r"\s+here(?=[.!?])", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s*([:,-])\s*$", "", cleaned)
+    cleaned = re.sub(r"\s+here$", "", cleaned, flags=re.IGNORECASE)
     return cleaned.strip()
 
 
