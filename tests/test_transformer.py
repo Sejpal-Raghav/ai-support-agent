@@ -9,5 +9,6 @@ def test_transformer_defaults_match_voice_plan() -> None:
         config.batch_size,
         config.learning_rate,
         config.epochs,
+        config.early_stopping_patience,
         config.seed,
-    ) == (128, 16, 2e-5, 3, 1729)
+    ) == (128, 16, 2e-5, 3, 1, 1729)

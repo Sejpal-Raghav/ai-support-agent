@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -176,13 +177,26 @@ def build_application() -> FastAPI:
     """Wire optional local artifacts without making imports download or train models."""
     static_dir = Path(os.environ["STATIC_DIR"]) if "STATIC_DIR" in os.environ else None
     cases_path = os.environ.get("DEMO_CASES_PATH")
+    transformer_selection_path = os.environ.get("TRANSFORMER_SELECTION_PATH")
     vosk_path = os.environ.get("VOSK_MODEL_PATH")
     responder: ChatResponder | None = None
     transcriber: Transcriber | None = None
     if cases_path:
         from support_agent.demo_runtime import DemoSupportEngine
 
-        responder = DemoSupportEngine(Path(cases_path))
+        transformer_dir: Path | None = None
+        intent_threshold = 0.62
+        if transformer_selection_path:
+            selection = json.loads(
+                Path(transformer_selection_path).read_text(encoding="utf-8")
+            )
+            transformer_dir = Path(selection["selected"]["artifact_dir"])
+            intent_threshold = float(selection["confidence_threshold"])
+        responder = DemoSupportEngine(
+            Path(cases_path),
+            transformer_dir=transformer_dir,
+            intent_threshold=intent_threshold,
+        )
     if vosk_path:
         transcriber = build_vosk_transcriber(Path(vosk_path))
 

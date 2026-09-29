@@ -6,6 +6,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 
@@ -98,7 +99,13 @@ def sanitize_historical_reply(text: str) -> str:
 class DemoSupportEngine:
     """Classify and retrieve using a pretrained neural sentence encoder."""
 
-    def __init__(self, cases_path: Path) -> None:
+    def __init__(
+        self,
+        cases_path: Path,
+        *,
+        transformer_dir: Path | None = None,
+        intent_threshold: float = 0.62,
+    ) -> None:
         from sentence_transformers import SentenceTransformer
 
         self._cases = tuple(
@@ -117,21 +124,40 @@ class DemoSupportEngine:
             [". ".join(INTENT_SEEDS[intent]) for intent in self._intent_ids],
             normalize_embeddings=True,
         )
+        self._transformer = None
+        self._intent_threshold = intent_threshold
+        if transformer_dir is not None:
+            from support_agent.intent.transformer import TransformerIntentPredictor
+
+            self._transformer = TransformerIntentPredictor(transformer_dir)
 
     def __call__(self, text: str) -> ChatResult:
         query = self._model.encode([text], normalize_embeddings=True)[0]
-        intent_scores = np.asarray(self._intent_embeddings @ query)
-        intent_position = int(np.argmax(intent_scores))
-        intent_id = self._intent_ids[intent_position]
-        confidence = float(np.clip((intent_scores[intent_position] + 1.0) / 2.0, 0.0, 1.0))
+        if self._transformer is not None:
+            prediction = self._transformer.predict(text)
+            intent_id = prediction.intent_id
+            confidence = prediction.confidence
+            score_type: Literal["semantic_similarity", "calibrated_probability"] = (
+                "calibrated_probability"
+            )
+            classifier_version = prediction.model_version
+        else:
+            intent_scores = np.asarray(self._intent_embeddings @ query)
+            intent_position = int(np.argmax(intent_scores))
+            intent_id = self._intent_ids[intent_position]
+            confidence = float(
+                np.clip((intent_scores[intent_position] + 1.0) / 2.0, 0.0, 1.0)
+            )
+            score_type = "semantic_similarity"
+            classifier_version = "minilm-semantic-demo-v1"
         candidates = [
             index for index, case in enumerate(self._cases) if case.intent_id == intent_id
         ]
-        if confidence < 0.62 or not candidates:
+        if confidence < self._intent_threshold or not candidates:
             return ChatResult(
                 intent=intent_id,
                 confidence=confidence,
-                score_type="semantic_similarity",
+                score_type=score_type,
                 retrieval_similarity=None,
                 response=(
                     "I’m not confident enough to answer that safely. "
@@ -140,7 +166,7 @@ class DemoSupportEngine:
                 action="fallback",
                 reasons=("low_intent_confidence",),
                 evidence_case_ids=(),
-                classifier_version="minilm-semantic-demo-v1",
+                classifier_version=classifier_version,
                 retrieval_index_version="amazonhelp-direct-pairs-v1",
             )
         similarities = np.asarray(self._case_embeddings @ query)
@@ -152,7 +178,7 @@ class DemoSupportEngine:
             return ChatResult(
                 intent=intent_id,
                 confidence=confidence,
-                score_type="semantic_similarity",
+                score_type=score_type,
                 retrieval_similarity=retrieval_similarity,
                 response=(
                     "I found related cases, but not enough safe evidence for an automatic answer."
@@ -160,18 +186,18 @@ class DemoSupportEngine:
                 action="fallback",
                 reasons=("insufficient_retrieval_evidence",),
                 evidence_case_ids=(),
-                classifier_version="minilm-semantic-demo-v1",
+                classifier_version=classifier_version,
                 retrieval_index_version="amazonhelp-direct-pairs-v1",
             )
         return ChatResult(
             intent=intent_id,
             confidence=confidence,
-            score_type="semantic_similarity",
+            score_type=score_type,
             retrieval_similarity=retrieval_similarity,
             response=reply,
             action="respond",
             reasons=(),
             evidence_case_ids=(case.case_id,),
-            classifier_version="minilm-semantic-demo-v1",
+            classifier_version=classifier_version,
             retrieval_index_version="amazonhelp-direct-pairs-v1",
         )

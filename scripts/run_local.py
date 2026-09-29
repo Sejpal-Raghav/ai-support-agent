@@ -16,6 +16,9 @@ def main() -> None:
     vosk_model = Path("artifacts/models/vosk-model-en-us-0.22-lgraph")
     if vosk_model.is_dir():
         os.environ["VOSK_MODEL_PATH"] = str(vosk_model)
+    transformer_selection = Path("artifacts/models/transformers/selection.json")
+    if transformer_selection.is_file():
+        os.environ["TRANSFORMER_SELECTION_PATH"] = str(transformer_selection)
     import uvicorn
 
     uvicorn.run("support_agent.api.app:app", host="127.0.0.1", port=7860, reload=False)
