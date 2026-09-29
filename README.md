@@ -5,18 +5,23 @@ Customer Support on Twitter dataset. It accepts microphone or typed input, displ
 speech, predicts one of six support intents with a neural sentence encoder, retrieves a similar
 historical resolution, and shows the evidence case ID behind its response.
 
-## What works now
+## What works locally now
 
-- Browser speech recognition in Chrome/Edge, with a Vosk backend endpoint ready for deployment.
+- Browser recording in Chrome/Edge, with server-side FFmpeg conversion and local Vosk transcription.
 - Neural intent classification using `sentence-transformers/all-MiniLM-L6-v2`.
 - Retrieval over 900 sanitized, problem-solving customer-to-AmazonHelp reply pairs from the local
   Twitter subset.
 - Safe fallback for low-confidence, weak-evidence, or credential-related requests.
-- React/Vite interface and FastAPI backend served from one process.
+- Resilient React/Vite interface with listening level, timer, typed fallback, retry, transcript,
+  response, decision reason, and evidence-detail states.
 - Docker definition for a Hugging Face Docker Space.
 
-The repository also contains a BERTweet fine-tuning path. MiniLM powers the current demo because
-the hand-reviewed taxonomy labels required for defensible fine-tuning have not been completed.
+The repository also contains an executable BERTweet-versus-DeBERTa challenger. It trains both
+models under the same fixed budget, selects on validation macro-F1 (warm p95 breaks differences
+below `0.005`), fits temperature scaling on a separate validation packet, and selects a confidence
+cutoff targeting at least 90% accepted precision. MiniLM powers the current demo until the required
+human-reviewed labels are completed; the runtime automatically loads the selected transformer
+artifact when `artifacts/models/transformers/selection.json` exists.
 
 ## Run the localhost demo
 
@@ -36,6 +41,9 @@ Open [http://127.0.0.1:7860](http://127.0.0.1:7860). The first launch downloads 
 MiniLM model. Allow microphone access, press **Talk**, speak for less than 30 seconds, and press
 **Stop**. The browser recording is transcribed locally by Vosk; typed input remains available.
 
+Startup can take roughly one minute on CPU while Vosk loads. The header changes from **Starting**
+to **Ready** only after the ASR, classifier, and retrieval components are loaded.
+
 ### Build the local evidence corpus from scratch
 
 Place Kaggle's `twcs.csv` at `data/raw/twcs.csv`, then run:
@@ -54,6 +62,20 @@ To download the Kaggle dataset instead of copying it manually:
 ```powershell
 uv run --extra data python scripts/download_dataset.py
 ```
+
+### Train the reviewed transformer challenger
+
+Complete and validate the model-selection and calibration packets first; the command fails closed
+when labels are absent, incomplete, or in the wrong partition.
+
+```powershell
+uv run --extra data python scripts/export_annotations.py --kind validation
+# Human: complete the generated CSV packets using data/annotations/annotation_guidelines.md
+uv run --extra data python scripts/validate_annotations.py --packet data/annotations/validation_model_selection.csv
+uv run --extra ml --extra data python scripts/train_transformer_challenge.py
+```
+
+Neither model choice nor thresholds read the golden test set.
 
 ## Supported intents
 
@@ -79,13 +101,16 @@ uv run --extra data python scripts/download_dataset.py
 ```powershell
 uv run --extra api pytest -q
 uv run ruff check src scripts tests
+uv run mypy
 cd frontend
+npm test
 npm run build
 npm audit --omit=dev
 ```
 
-Current local verification: 58 Python tests pass; the frontend production build succeeds and its
-dependency audit reports zero vulnerabilities.
+Current local verification: 64 Python tests and 3 frontend behavior tests pass; Ruff and strict
+mypy pass; the frontend production build succeeds and its dependency audit reports zero
+vulnerabilities.
 
 ## Safety and privacy boundaries
 
@@ -97,7 +122,14 @@ dependency audit reports zero vulnerabilities.
 - Uploaded audio is converted in memory and is not retained or logged.
 - Low-confidence or weak-evidence messages produce a visible fallback.
 
-## Deployment
+## Remaining human and deployment work
+
+Code cannot truthfully manufacture the required evidence. A human must finish the reviewed
+taxonomy/annotation packets and record the held-out five-speaker audio set before training and
+freezing accuracy, WER, coverage, latency, and task-success results. See
+[docs/local_completion_status.md](docs/local_completion_status.md) for exact gates.
+
+## Deployment (deferred)
 
 `Dockerfile` builds the React assets and serves them from FastAPI on port `7860`. The Hugging Face
 Space metadata and deployment notes are in `deployment/huggingface/README.md`. A public deployment

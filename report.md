@@ -27,12 +27,16 @@ Replies are stripped of handles, direct customer names, URLs, and agent signatur
 confidence, weak retrieval similarity, absent evidence, or credential-related text causes a safe
 fallback. Every normal response includes its historical case ID.
 
-The repository includes a BERTweet fine-tuning implementation for the final supervised model. It
-is not presented as trained until the required human-reviewed labels exist.
+The supervised path compares `vinai/bertweet-base` with `microsoft/deberta-v3-base` under the same
+three-epoch maximum, seed, batch size, learning rate, early-stopping rule, and human validation
+packets. Selection uses validation macro-F1; differences below 0.005 are broken by lower warm p95
+latency. Temperature and the 90%-precision selective threshold use a separate validation packet.
+The golden test set is never read during selection or calibration. The supervised model is not
+presented as trained until the required human-reviewed labels exist.
 
 ## Current results
 
-- 58 Python tests pass; lint passes.
+- 64 Python tests and 3 React behavior tests pass; Ruff and strict mypy pass.
 - React production build succeeds and `npm audit --omit=dev` reports zero vulnerabilities.
 - Local page, health endpoint, normal-response path, and unrelated-request fallback were smoke
   tested successfully.
@@ -44,6 +48,8 @@ is not presented as trained until the required human-reviewed labels exist.
 - Example: “my order is late and tracking has not changed” was classified as
   `delivery_tracking` with 0.878 semantic confidence and answered using case
   `AmazonHelp:128727` in 134 ms after model warm-up.
+- The rebuilt local production service reported all readiness flags true. A typed late-package
+  smoke request completed in 18 ms and visibly rendered its transcript, answer, and provenance.
 
 These are engineering checks, not a held-out accuracy claim. Macro-F1, WER, and end-to-end task
 success remain unreported until the planned independent human labels and multi-speaker recordings
@@ -55,6 +61,11 @@ Keyword-derived corpus labels can be noisy, semantic confidence is not calibrate
 and historical Twitter replies can be context-dependent. Vosk accuracy varies with microphone and
 background noise. The current demo supports English and six common
 intents only. It must not be used for real customer account decisions.
+
+The latest smoke check also found a representative retrieval failure: a late-package request
+retrieved a related Amazon delivery case whose historical reply referred generically to “troubles
+with your account.” The evidence link is real, but grounding alone does not guarantee usefulness.
+This example must remain in failure analysis and motivates human response-quality evaluation.
 
 ## Deployment
 

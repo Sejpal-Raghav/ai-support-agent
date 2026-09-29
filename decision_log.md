@@ -12,8 +12,9 @@
    excluded rather than assigned a questionable training/retrieval label.
 6. **Cap each intent at 150 historical cases.** The cap limits startup latency and prevents the
    largest topic from dominating the evidence corpus.
-7. **Use MiniLM for the working vertical slice.** It is a real neural encoder that runs acceptably
-   on CPU; BERTweet remains the supervised upgrade after labels are reviewed.
+7. **Use MiniLM for the working vertical slice, then compare BERTweet and DeBERTa fairly.** MiniLM
+   makes the local demo usable before labels exist. Both supervised candidates use identical data
+   and training budgets; macro-F1 wins, with warm p95 used only inside a 0.005 tie margin.
 8. **Retrieve only within the predicted intent.** This reduces fluent but topically wrong replies.
 9. **Preserve an evidence case ID for every normal response.** Reviewers can audit which historical
    exchange supported the output.
@@ -25,8 +26,10 @@
 12. **Fail closed on weak confidence or unsafe content.** The chatbot displays a fallback instead
     of forcing an answer.
 13. **Use recorder-first browser audio with local Vosk transcription.** This avoids dependence on
-    inconsistent browser speech services and keeps audio processing within the application.
+    inconsistent browser speech services. Silence is rejected before decoding, audio is capped at
+    10 MB/30 seconds, and the application does not retain recordings or log transcripts.
 14. **Serve React and FastAPI from one process.** One origin avoids CORS and independent release
     drift during evaluation.
 15. **Do not invent evaluation results.** Engineering smoke tests are reported separately from the
-    held-out human and voice evaluation that still must be conducted.
+    held-out human and voice evaluation that still must be conducted; missing human evidence is a
+    release gate, not a reason to create synthetic “golden” labels.
