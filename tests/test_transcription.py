@@ -33,13 +33,14 @@ class FakeRecognizer:
         return json.dumps({"text": self.final_text})
 
 
-def wav_bytes(*, seconds: int = 1) -> bytes:
+def wav_bytes(*, seconds: int = 1, sample: int = 1000) -> bytes:
     output = BytesIO()
     with wave.open(output, "wb") as wav_file:
         wav_file.setnchannels(1)
         wav_file.setsampwidth(2)
         wav_file.setframerate(16000)
-        wav_file.writeframes(b"\x00\x00" * 16000 * seconds)
+        frame = sample.to_bytes(2, "little", signed=True)
+        wav_file.writeframes(frame * 16000 * seconds)
     return output.getvalue()
 
 
@@ -77,6 +78,16 @@ def test_transcribe_pcm_wav_rejects_empty_transcript() -> None:
             wav_bytes(), recognizer=FakeRecognizer(final_text=""), asr_model_version="test-vosk"
         )
     assert error.value.code == "empty_transcript"
+
+
+def test_transcribe_pcm_wav_rejects_silence_before_recognition() -> None:
+    recognizer = FakeRecognizer(final_text="hallucinated speech")
+    with pytest.raises(AudioValidationError, match="No speech") as error:
+        transcribe_pcm_wav(
+            wav_bytes(sample=0), recognizer=recognizer, asr_model_version="test-vosk"
+        )
+    assert error.value.code == "empty_transcript"
+    assert not recognizer.chunks
 
 
 def test_transcribe_pcm_wav_rejects_long_audio() -> None:

@@ -13,8 +13,11 @@ from io import BytesIO
 from pathlib import Path
 from typing import Protocol
 
+import numpy as np
+
 MAX_AUDIO_BYTES = 10 * 1024 * 1024
 MAX_AUDIO_SECONDS = 30
+ENCODING_DURATION_TOLERANCE_MS = 500
 SUPPORTED_CONTENT_TYPES = frozenset(
     {
         "audio/webm",
@@ -131,7 +134,7 @@ def _wav_duration_and_frames(wav_bytes: bytes) -> tuple[int, bytes]:
                 wav_file.getframerate() * wav_file.getnchannels() * wav_file.getsampwidth()
             )
             duration_ms = round(len(pcm_frames) * 1000 / bytes_per_second)
-            if duration_ms > MAX_AUDIO_SECONDS * 1000:
+            if duration_ms > MAX_AUDIO_SECONDS * 1000 + ENCODING_DURATION_TOLERANCE_MS:
                 raise AudioValidationError(
                     "audio_too_long", f"Audio must be at most {MAX_AUDIO_SECONDS} seconds."
                 )
@@ -151,6 +154,10 @@ def transcribe_pcm_wav(
     """Transcribe a validated PCM WAV stream without retaining audio or transcript state."""
     started = time.perf_counter()
     duration_ms, pcm_frames = _wav_duration_and_frames(wav_bytes)
+    samples = np.frombuffer(pcm_frames, dtype="<i2").astype(np.float32) / 32768.0
+    rms = float(np.sqrt(np.mean(np.square(samples)))) if samples.size else 0.0
+    if rms < 0.002:
+        raise AudioValidationError("empty_transcript", "No speech was detected. Please try again.")
     text_parts: list[str] = []
     for offset in range(0, len(pcm_frames), 4000):
         chunk = pcm_frames[offset : offset + 4000]
@@ -192,7 +199,7 @@ def transcribe_webm_audio(
         raise RuntimeError(
             "Install the api dependency group to enable Vosk transcription."
         ) from error
-    model = _load_vosk_model(str(model_path))
+    model = load_vosk_model(str(model_path))
     recognizer = KaldiRecognizer(model, 16000)
     return transcribe_pcm_wav(
         wav_bytes,
@@ -202,7 +209,7 @@ def transcribe_webm_audio(
 
 
 @lru_cache(maxsize=2)
-def _load_vosk_model(model_path: str) -> object:
+def load_vosk_model(model_path: str) -> object:
     """Load each immutable Vosk model once per server process."""
     from vosk import Model
 

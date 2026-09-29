@@ -131,6 +131,8 @@ class DemoSupportEngine:
             return ChatResult(
                 intent=intent_id,
                 confidence=confidence,
+                score_type="semantic_similarity",
+                retrieval_similarity=None,
                 response=(
                     "I’m not confident enough to answer that safely. "
                     "A support specialist should review it."
@@ -145,10 +147,13 @@ class DemoSupportEngine:
         best = max(candidates, key=lambda index: float(similarities[index]))
         case = self._cases[best]
         reply = sanitize_historical_reply(case.reply_text)
-        if float(similarities[best]) < 0.45 or not reply or _UNSAFE.search(reply):
+        retrieval_similarity = float(similarities[best])
+        if retrieval_similarity < 0.45 or not reply or _UNSAFE.search(reply):
             return ChatResult(
                 intent=intent_id,
                 confidence=confidence,
+                score_type="semantic_similarity",
+                retrieval_similarity=retrieval_similarity,
                 response=(
                     "I found related cases, but not enough safe evidence for an automatic answer."
                 ),
@@ -161,6 +166,8 @@ class DemoSupportEngine:
         return ChatResult(
             intent=intent_id,
             confidence=confidence,
+            score_type="semantic_similarity",
+            retrieval_similarity=retrieval_similarity,
             response=reply,
             action="respond",
             reasons=(),

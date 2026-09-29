@@ -11,6 +11,8 @@ def test_health_and_response_contracts() -> None:
         responder=lambda _: ChatResult(
             intent="delivery_issue",
             confidence=0.91,
+            score_type="calibrated_probability",
+            retrieval_similarity=0.83,
             response="Please check your delivery tracking.",
             action="respond",
             reasons=(),
@@ -30,6 +32,8 @@ def test_health_and_response_contracts() -> None:
     assert response.status_code == 200
     assert response.json()["evidence_case_ids"] == ["case-1"]
     assert response.json()["session_id"] == "s1"
+    assert response.json()["score_type"] == "calibrated_probability"
+    assert response.json()["retrieval_similarity"] == 0.83
 
 
 def test_transcription_contract_and_typed_error() -> None:
@@ -47,6 +51,20 @@ def test_transcription_contract_and_typed_error() -> None:
     )
     assert unavailable.status_code == 503
     assert unavailable.json()["detail"]["code"] == "asr_unavailable"
+
+
+def test_response_failure_is_a_typed_service_error() -> None:
+    def failing_responder(_: str) -> ChatResult:
+        raise RuntimeError("model artifact missing")
+
+    response = TestClient(create_app(responder=failing_responder)).post(
+        "/api/respond", json={"text": "where is my parcel", "session_id": "s1"}
+    )
+    assert response.status_code == 503
+    assert response.json()["detail"] == {
+        "code": "response_unavailable",
+        "message": "Response service unavailable.",
+    }
 
 
 def test_static_frontend_is_served_after_api_routes(tmp_path) -> None:

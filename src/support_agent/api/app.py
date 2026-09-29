@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import perf_counter
+from typing import Literal
 from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -16,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from support_agent.voice.transcription import (
     AudioValidationError,
     TranscriptionResult,
+    load_vosk_model,
     transcribe_webm_audio,
 )
 
@@ -34,6 +36,8 @@ class RespondPayload(BaseModel):
     text: str
     intent: str
     confidence: float = Field(ge=0.0, le=1.0)
+    score_type: Literal["semantic_similarity", "calibrated_probability"]
+    retrieval_similarity: float | None = Field(default=None, ge=-1.0, le=1.0)
     response: str
     action: str
     reasons: tuple[str, ...]
@@ -56,6 +60,8 @@ class HealthPayload(BaseModel):
 class ChatResult:
     intent: str
     confidence: float
+    score_type: Literal["semantic_similarity", "calibrated_probability"]
+    retrieval_similarity: float | None
     response: str
     action: str
     reasons: tuple[str, ...]
@@ -82,6 +88,8 @@ def create_app(
         return ChatResult(
             intent="unavailable",
             confidence=0.0,
+            score_type="semantic_similarity",
+            retrieval_similarity=None,
             response="The chatbot model is still loading. Please try again shortly.",
             action="fallback",
             reasons=("classifier_unavailable",),
@@ -125,12 +133,20 @@ def create_app(
     @app.post("/api/respond", response_model=RespondPayload)
     def respond(request: RespondRequest) -> RespondPayload:
         started = perf_counter()
-        result = active_responder(request.text.strip())
+        try:
+            result = active_responder(request.text.strip())
+        except RuntimeError as error:
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "response_unavailable", "message": "Response service unavailable."},
+            ) from error
         return RespondPayload(
             session_id=request.session_id or str(uuid4()),
             text=request.text.strip(),
             intent=result.intent,
             confidence=result.confidence,
+            score_type=result.score_type,
+            retrieval_similarity=result.retrieval_similarity,
             response=result.response,
             action=result.action,
             reasons=result.reasons,
@@ -147,7 +163,8 @@ def create_app(
 
 
 def build_vosk_transcriber(model_path: Path) -> Transcriber:
-    """Bind production configuration without loading a model at import time."""
+    """Load and bind the configured Vosk model before readiness can report true."""
+    load_vosk_model(str(model_path))
 
     def transcriber(audio: bytes, content_type: str | None) -> TranscriptionResult:
         return transcribe_webm_audio(audio, content_type=content_type, model_path=model_path)
