@@ -11,7 +11,7 @@ from typing import Literal
 import numpy as np
 
 from support_agent.api.app import ChatResult
-from support_agent.hashing import file_sha256
+from support_agent.hashing import verify_jsonl_sha256
 
 DEMO_EMBEDDING_REVISION = "c9745ed1d9f207416be6d2e6f8de32d1f16199bf"
 
@@ -176,17 +176,17 @@ class DemoSupportEngine:
 
         self._cases = tuple(
             DemoCase(**json.loads(line))
-            for line in cases_path.read_text(encoding="utf-8").splitlines()
+            for line in cases_path.read_text(encoding="utf-8-sig").splitlines()
             if line.strip()
         )
         if not self._cases:
             raise ValueError("the local demo corpus is empty")
         if any(case.split != "train" or not case.source_thread_id for case in self._cases):
             raise ValueError("the demo corpus must contain only traceable train cases")
-        corpus_hash = file_sha256(cases_path)
-        manifest = json.loads(cases_path.with_suffix(".manifest.json").read_text(encoding="utf-8"))
-        if manifest.get("corpus_sha256") != corpus_hash:
-            raise ValueError("the demo corpus hash does not match its manifest")
+        manifest = json.loads(
+            cases_path.with_suffix(".manifest.json").read_text(encoding="utf-8-sig")
+        )
+        corpus_hash = verify_jsonl_sha256(cases_path, manifest["corpus_sha256"])
         partitions = manifest["thread_partitions"]
         if any(partitions.get(case.source_thread_id) != "train" for case in self._cases):
             raise ValueError("demo evidence includes a non-train source thread")

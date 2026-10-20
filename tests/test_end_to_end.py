@@ -116,8 +116,16 @@ def test_duplicate_charge_requires_billing_review(demo_engine) -> None:
 def test_runtime_rejects_tampered_evidence(tmp_path: Path, demo_engine) -> None:
     path = tmp_path / "cases.jsonl"
     path.write_text(path.read_text(encoding="utf-8").replace("carrier", "fraud"), encoding="utf-8")
-    with pytest.raises(ValueError, match="hash"):
+    with pytest.raises(ValueError, match="content does not match"):
         DemoSupportEngine(path)
+
+
+def test_runtime_accepts_secret_file_final_newline_and_bom(tmp_path: Path, demo_engine) -> None:
+    path = tmp_path / "cases.jsonl"
+    original_version = demo_engine("where is my package").retrieval_index_version
+    path.write_bytes(b"\xef\xbb\xbf" + path.read_bytes() + b"\n")
+    loaded = DemoSupportEngine(path)
+    assert loaded("where is my package").retrieval_index_version == original_version
 
 
 def test_runtime_rejects_held_out_provenance(tmp_path: Path, demo_engine) -> None:

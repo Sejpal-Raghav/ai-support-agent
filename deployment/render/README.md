@@ -38,6 +38,11 @@ The prepared manifest contains only the train memberships needed for inference a
 original manifest's hash. The original matching `artifacts/demo_cases.*` files also work if these
 compact deployment copies have not been prepared.
 
+Render's text editor can change Windows CRLF line endings to LF or add/remove the final newline.
+The runtime verifies the original manifest hash against those equivalent text encodings, preserving
+the same evidence version. Edits to JSON values, missing records, and mismatched exports still fail
+verification. For a content mismatch, replace both Secret Files from the same local export.
+
 They are available to the running service under `/etc/secrets/`. The matching manifest is mandatory
 and must come from the same corpus build. Do not include raw Twitter data, participant recordings,
 credentials, the local virtual environment, or the full artifacts folder.

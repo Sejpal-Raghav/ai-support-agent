@@ -27,3 +27,22 @@ def file_sha256(path: Path, chunk_bytes: int = 1_048_576) -> str:
         while chunk := handle.read(chunk_bytes):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def verify_jsonl_sha256(path: Path, expected_hash: str) -> str:
+    """Accept only exact bytes or equivalent line-ending/BOM/final-newline transport changes."""
+    if file_sha256(path) == expected_hash:
+        return expected_hash
+    text = path.read_text(encoding="utf-8-sig")
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n").rstrip("\n")
+    for newline in ("\n", "\r\n"):
+        body = normalized.replace("\n", newline)
+        for suffix in ("", newline):
+            candidate = (body + suffix).encode("utf-8")
+            if hashlib.sha256(candidate).hexdigest() == expected_hash:
+                return expected_hash
+    raise ValueError(
+        "The demo corpus content does not match its manifest after line-ending normalization. "
+        "Replace both Render Secret Files with the matching demo_cases.jsonl and "
+        "demo_cases.manifest.json from the same local export; do not edit their contents."
+    )
