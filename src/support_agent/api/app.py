@@ -225,6 +225,9 @@ def build_application() -> FastAPI:
             Path(cases_path),
             transformer_dir=transformer_dir,
             intent_threshold=intent_threshold,
+            model_path=Path(os.environ["MINILM_MODEL_PATH"])
+            if os.environ.get("MINILM_MODEL_PATH")
+            else None,
         )
     if vosk_path:
         transcriber = build_vosk_transcriber(Path(vosk_path))

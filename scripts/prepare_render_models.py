@@ -20,12 +20,14 @@ def main() -> None:
         "sentence-transformers/all-MiniLM-L6-v2",
         revision="c9745ed1d9f207416be6d2e6f8de32d1f16199bf",
         device="cpu",
-    )
+    ).save(str(root / "artifacts/models/minilm"))
     subprocess.run([sys.executable, "scripts/download_vosk_model.py"], check=True)
     import imageio_ffmpeg
 
-    if not Path(imageio_ffmpeg.get_ffmpeg_exe()).is_file():
+    binary = Path(imageio_ffmpeg.get_ffmpeg_exe())
+    if not binary.is_file():
         raise RuntimeError("The bundled FFmpeg executable is missing.")
+    subprocess.run([str(binary), "-version"], check=True, stdout=subprocess.DEVNULL)
 
 
 if __name__ == "__main__":

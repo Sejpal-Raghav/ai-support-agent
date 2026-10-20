@@ -11,19 +11,31 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     STATIC_DIR=/app/static \
     HF_HOME=/app/artifacts/huggingface \
+    MINILM_MODEL_PATH=/app/artifacts/models/minilm \
+    PYTHONPATH=/app/src \
+    OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    TOKENIZERS_PARALLELISM=false \
+    UV_HTTP_TIMEOUT=300 \
+    UV_CONCURRENT_DOWNLOADS=2 \
+    PIP_DEFAULT_TIMEOUT=120 \
+    HF_HUB_DOWNLOAD_TIMEOUT=120 \
+    HF_HUB_ETAG_TIMEOUT=60 \
     PORT=7860
 WORKDIR /app
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml uv.lock README.md ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    pip install --no-cache-dir uv==0.8.15 \
+    && uv sync --frozen --no-dev --extra api --no-install-project \
+    && uv pip install --python .venv/bin/python torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu \
+    && uv pip install --python .venv/bin/python sentence-transformers==3.4.1 transformers==4.48.3 huggingface-hub==0.28.1
+COPY scripts/prepare_render_models.py scripts/download_vosk_model.py ./scripts/
+RUN .venv/bin/python scripts/prepare_render_models.py
 COPY src/ ./src/
 COPY scripts/ ./scripts/
-RUN pip install --no-cache-dir uv==0.8.15 \
-    && uv sync --frozen --no-dev --extra api \
-    && uv pip install --python .venv/bin/python torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu \
-    && uv pip install --python .venv/bin/python sentence-transformers==3.4.1 transformers==4.48.3 huggingface-hub==0.28.1 \
-    && .venv/bin/python scripts/prepare_render_models.py
 COPY --from=frontend-build /app/frontend/dist /app/static
 EXPOSE 7860
+HEALTHCHECK --interval=15s --timeout=5s --start-period=180s \
+    CMD [".venv/bin/python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '7860') + '/api/ready', timeout=4)"]
 CMD [".venv/bin/python", "scripts/run_render.py"]

@@ -171,6 +171,7 @@ class DemoSupportEngine:
         *,
         transformer_dir: Path | None = None,
         intent_threshold: float = 0.62,
+        model_path: Path | None = None,
     ) -> None:
         from sentence_transformers import SentenceTransformer
 
@@ -192,18 +193,23 @@ class DemoSupportEngine:
             raise ValueError("demo evidence includes a non-train source thread")
         self._index_version = f"amazonhelp-{corpus_hash[:12]}-{DEMO_EMBEDDING_REVISION[:8]}"
         self._model = SentenceTransformer(
-            "sentence-transformers/all-MiniLM-L6-v2",
-            revision=DEMO_EMBEDDING_REVISION,
+            str(model_path) if model_path is not None else "sentence-transformers/all-MiniLM-L6-v2",
+            revision=None if model_path is not None else DEMO_EMBEDDING_REVISION,
             device="cpu",
             local_files_only=True,
         )
         self._case_embeddings = self._model.encode(
-            [case.customer_text for case in self._cases], normalize_embeddings=True
+            [case.customer_text for case in self._cases],
+            normalize_embeddings=True,
+            batch_size=4,
+            show_progress_bar=False,
         )
         self._intent_ids = tuple(INTENT_SEEDS)
         self._intent_embeddings = self._model.encode(
             [". ".join(INTENT_SEEDS[intent]) for intent in self._intent_ids],
             normalize_embeddings=True,
+            batch_size=4,
+            show_progress_bar=False,
         )
         self._transformer = None
         self._intent_threshold = intent_threshold
