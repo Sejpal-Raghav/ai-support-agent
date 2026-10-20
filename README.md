@@ -1,11 +1,13 @@
 # Voice-Enabled Support Chatbot
 
-A localhost-ready voice support chatbot grounded in real AmazonHelp conversations from Kaggle's
+A voice support chatbot grounded in real AmazonHelp conversations from Kaggle's
 Customer Support on Twitter dataset. It accepts microphone or typed input, displays the recognized
 speech, predicts one of six support intents with a neural sentence encoder, retrieves a similar
-historical resolution, and shows the evidence case ID behind its response.
+historical resolution, and displays its response and intent. The API retains evidence IDs for auditing.
 
-## What works locally now
+[Live chatbot on Render Free](https://ai-support-agent-5e43.onrender.com/).
+
+## What works now
 
 - Browser recording in Chrome/Edge, with server-side FFmpeg conversion and local Vosk transcription.
 - Neural intent classification using `sentence-transformers/all-MiniLM-L6-v2`.
@@ -14,7 +16,7 @@ historical resolution, and shows the evidence case ID behind its response.
 - Safe fallback for low-confidence, weak-evidence, or credential-related requests.
 - Resilient React/Vite interface with listening level, timer, typed fallback, retry, transcript,
   response, and a clearly labelled intent.
-- Docker definition for a Hugging Face Docker Space.
+- Compact Docker deployment verified on Render Free, plus optional Hugging Face Space notes.
 
 The repository also contains an executable BERTweet-versus-DeBERTa challenger. It trains both
 models under the same fixed budget, selects on validation macro-F1 (warm p95 breaks differences

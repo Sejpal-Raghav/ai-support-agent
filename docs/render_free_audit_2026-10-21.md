@@ -45,7 +45,7 @@ billing fallbacks), real WAV-to-transcript processing, and transcript-to-respons
 | Embedding cosine to original | Minimum 0.9805; mean 0.9921 |
 | Python regression suite | 133 passed; one existing Starlette/AnyIO deprecation warning |
 | Frontend | 9 tests passed; production build passed |
-| Static checks | Ruff passed; Mypy passed across 38 source files |
+| Static checks | Ruff passed; Mypy passed across 61 source/script files |
 
 The **final release image**,
 `sha256:45abd0735bed2323e9c3d4de50996ccca23fb311af1fa85ae2ddfda00c281747`,
@@ -95,5 +95,24 @@ held-out response accuracy is claimed. Real microphone permissions remain browse
 dependent; API audio integration cannot establish that a physical microphone has permission.
 The resource measurements are Linux Docker measurements, not Render's own metrics.
 
-The public target is <https://ai-support-agent-5e43.onrender.com/>. A local image check alone does
-not prove a new public deploy is healthy; confirm readiness and a real response after publishing.
+## Public deployment verification
+
+After publishing commit `51c8a18`, the public HTTPS service at
+<https://ai-support-agent-5e43.onrender.com/> returned all three readiness flags true and a real
+`delivery_tracking` response from `minilm-onnx-semantic-c9745ed1d9f2`.
+
+A real multipart WebM upload was then sent to the public transcription endpoint. The service
+recognized **“where is my package my delivery is late”**, reported
+`vosk-model-small-en-us-0.15`, and returned a Delivery tracking response for that transcript.
+The two HTTPS requests completed in **7.78 seconds**. The public browser also showed Ready,
+an enabled recording control, and a working Send question action with visible intent and response.
+
+Evidence is saved locally in `artifacts/render-public-free-verification.json`,
+`artifacts/render-public-free-voice.json`, and `artifacts/render-public-free-proof.png`.
+No Render plan or payment settings were changed. This confirms deployed audio/API integration;
+physical microphone permission remains a browser/device check.
+
+The full GitHub check also exposed five pre-existing typing/stub errors in training/evaluation
+scripts. They were corrected with typed ndarray/record annotations, Pydantic dictionary validation
+for CSV values, and the missing joblib stub configuration. The exact CI commands now pass locally:
+`ruff check .`, `mypy src scripts` (61 files), and all 133 Python tests.

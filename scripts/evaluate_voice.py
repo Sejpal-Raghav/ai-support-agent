@@ -61,16 +61,18 @@ def main(
                     "without dropping held-out clips"
                 ) from error
             records.append(
-                VoiceEvaluationRecord(
-                    recording_id=row["recording_id"],
-                    speaker_id=row["speaker_id"],
-                    noise=row["noise"],
-                    split=row["split"],
-                    reference=row["reference"],
-                    transcript=result.transcript,
-                    asr_model_version=result.asr_model_version,
-                    duration_ms=result.duration_ms,
-                    latency_ms=result.latency_ms,
+                VoiceEvaluationRecord.model_validate(
+                    {
+                        "recording_id": row["recording_id"],
+                        "speaker_id": row["speaker_id"],
+                        "noise": row["noise"],
+                        "split": row["split"],
+                        "reference": row["reference"],
+                        "transcript": result.transcript,
+                        "asr_model_version": result.asr_model_version,
+                        "duration_ms": result.duration_ms,
+                        "latency_ms": result.latency_ms,
+                    }
                 )
             )
     report = evaluate_voice(records)

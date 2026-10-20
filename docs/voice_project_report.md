@@ -16,8 +16,9 @@ check, not held-out task accuracy. The first Linux integration run passed at 512
 with swap/networking disabled and approximately 272 MiB peak memory. The synthetic WAV was
 transcribed correctly. See [the free-tier audit](render_free_audit_2026-10-21.md) for final evidence
 and limitations. The live target is <https://ai-support-agent-5e43.onrender.com/> and source is
-<https://github.com/Sejpal-Raghav/ai-support-agent>; a target URL alone does not prove a new deploy
-has become healthy. The older checkpoint details below are retained as historical context.
+<https://github.com/Sejpal-Raghav/ai-support-agent>. Public HTTPS readiness, typed responses, and
+real synthetic WebM-to-transcript-to-response requests were verified on 21 October; the public
+voice round trip took 7.78 seconds. The older checkpoint details below are historical context.
 
 ## Dataset and scope
 

@@ -91,7 +91,7 @@ warn_unused_configs = true
 
 [[tool.mypy.overrides]]
 module = [
-  "imageio_ffmpeg", "kagglehub", "onnxruntime", "scipy.*", "sklearn.*",
+  "imageio_ffmpeg", "joblib", "kagglehub", "onnxruntime", "scipy.*", "sklearn.*",
   "tokenizers", "transformers", "vosk",
 ]
 ignore_missing_imports = true

@@ -22,7 +22,7 @@ from support_agent.intent.train import (
     train_majority_classifier,
     train_tfidf_logistic,
 )
-from support_agent.schemas import IntentTaxonomy, ReconstructedThread
+from support_agent.schemas import GoldenExample, IntentTaxonomy, ReconstructedThread
 from support_agent.taxonomy.cluster import ClusterAssignment, ClusterResult, TaxonomySettings
 
 app = typer.Typer(add_completion=False)
@@ -56,7 +56,9 @@ def _load_cluster_result(artifacts_dir: Path) -> ClusterResult:
     )
 
 
-def _validated_records(path: Path, taxonomy: IntentTaxonomy, partition: str, count: int):
+def _validated_records(
+    path: Path, taxonomy: IntentTaxonomy, partition: str, count: int
+) -> list[GoldenExample]:
     records = load_completed_annotations(path)
     audit = validate_annotation_consistency(records, taxonomy)
     if (

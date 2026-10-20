@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import typer
 import yaml
+from numpy.typing import NDArray
 
 from support_agent.evaluation.annotations import build_decision_points
 from support_agent.schemas import IntentTaxonomy, ReconstructedThread
@@ -56,7 +57,7 @@ def main(
         cluster_to_intent.get(int(cluster), taxonomy.other_intent_id)
         for cluster in assignments["cluster_id"]
     ]
-    centroids: dict[str, np.ndarray] = {}
+    centroids: dict[str, NDArray[np.float32]] = {}
     for intent_id in (intent.intent_id for intent in taxonomy.intents):
         indices = [index for index, label in enumerate(labels) if label == intent_id]
         if not indices:
