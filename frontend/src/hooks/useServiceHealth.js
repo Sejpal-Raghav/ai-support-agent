@@ -20,6 +20,13 @@ export function useServiceHealth() {
         setState({ status: health.asr_ready ? "ready" : "partial", health, error: "" });
         return;
       }
+      if (["degraded", "unconfigured"].includes(health.status)) {
+        setState({
+          status: "unavailable", health,
+          error: health.message || "The server's response model and evidence corpus are not configured.",
+        });
+        return;
+      }
       throw new Error("services_not_ready");
     } catch {
       if (!mountedRef.current) return;
@@ -41,5 +48,10 @@ export function useServiceHealth() {
     };
   }, [check]);
 
-  return { ...state, checkAgain: check };
+  const checkAgain = useCallback(() => {
+    attemptRef.current = 0;
+    check();
+  }, [check]);
+
+  return { ...state, checkAgain };
 }

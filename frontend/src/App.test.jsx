@@ -35,6 +35,24 @@ describe("Support Listening Desk", () => {
     });
   });
 
+  it("explains an unconfigured backend immediately and can retry after repair", async () => {
+    let repaired = false;
+    vi.stubGlobal("fetch", vi.fn(() => jsonResponse(repaired ? {
+      status: "ready", asr_ready: true, classifier_ready: true, retrieval_ready: true,
+    } : {
+      status: "degraded", asr_ready: false, classifier_ready: false, retrieval_ready: false,
+    })));
+    const user = userEvent.setup();
+    render(<App />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("not configured");
+    expect(screen.getByText("Unavailable")).toBeVisible();
+    expect(screen.queryByText("Checking speech and response services…")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start recording" })).toBeDisabled();
+    repaired = true;
+    await user.click(screen.getByRole("button", { name: "Check again" }));
+    expect(await screen.findByText("Ready")).toBeVisible();
+  });
+
   it("displays the response and clearly labelled intent without response details", async () => {
     vi.stubGlobal("fetch", vi.fn((url) => {
       if (url === "/api/health") {

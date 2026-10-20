@@ -65,6 +65,7 @@ class HealthPayload(BaseModel):
     asr_ready: bool
     classifier_ready: bool
     retrieval_ready: bool
+    message: str | None = None
 
 
 @dataclass(frozen=True)
@@ -121,9 +122,20 @@ def create_app(
             readiness()
             if readiness
             else HealthPayload(
-                status="degraded", asr_ready=False, classifier_ready=False, retrieval_ready=False
+                status="unconfigured",
+                asr_ready=False,
+                classifier_ready=False,
+                retrieval_ready=False,
+                message="The server has not configured the speech and response models.",
             )
         )
+
+    @app.get("/api/ready", response_model=HealthPayload)
+    def ready() -> HealthPayload:
+        payload = health()
+        if not (payload.asr_ready and payload.classifier_ready and payload.retrieval_ready):
+            raise HTTPException(status_code=503, detail=payload.model_dump())
+        return payload
 
     @app.post("/api/transcribe")
     async def transcribe(audio: UploadFile = File(...)) -> dict[str, object]:
@@ -202,9 +214,7 @@ def build_application() -> FastAPI:
         transformer_dir: Path | None = None
         intent_threshold = 0.62
         if transformer_selection_path:
-            selection = json.loads(
-                Path(transformer_selection_path).read_text(encoding="utf-8")
-            )
+            selection = json.loads(Path(transformer_selection_path).read_text(encoding="utf-8"))
             if selection.get("quality_gate_passed") is not True:
                 raise RuntimeError(
                     "The selected transformer has not passed validation quality gates."
@@ -221,10 +231,21 @@ def build_application() -> FastAPI:
 
     def readiness() -> HealthPayload:
         return HealthPayload(
-            status="ready" if responder and transcriber else "degraded",
+            status="ready"
+            if responder and transcriber
+            else "degraded"
+            if responder
+            else "unconfigured",
             asr_ready=transcriber is not None,
             classifier_ready=responder is not None,
             retrieval_ready=responder is not None,
+            message=(
+                None
+                if responder and transcriber
+                else "Speech recognition is unavailable. Typed questions are available."
+                if responder
+                else "The server has not configured the response model and evidence corpus."
+            ),
         )
 
     return create_app(

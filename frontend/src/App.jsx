@@ -17,7 +17,7 @@ export default function App() {
   const busy = ["transcribing", "responding"].includes(conversation.status);
   const textReady = Boolean(service.health?.classifier_ready && service.health?.retrieval_ready);
   const voiceReady = Boolean(textReady && service.health?.asr_ready);
-  const serviceError = service.status === "unavailable" ? "The local service did not become ready." : "";
+  const serviceError = service.status === "unavailable" ? service.error : "";
 
   const sendText = async (text) => {
     setDraft("");
@@ -56,7 +56,7 @@ export default function App() {
             onCheckAgain={service.status === "unavailable" ? service.checkAgain : null}
           />
           {service.status === "checking" && (
-            <p className="processing-status" role="status">Checking microphone service…</p>
+            <p className="processing-status" role="status">Checking speech and response services…</p>
           )}
         </div>
         <TextComposer

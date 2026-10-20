@@ -107,3 +107,27 @@ def test_unvalidated_transformer_cannot_be_served(tmp_path, monkeypatch) -> None
     monkeypatch.setenv("TRANSFORMER_SELECTION_PATH", str(selection))
     with pytest.raises(RuntimeError, match="validation quality gates"):
         build_application()
+
+
+def test_missing_configuration_is_explicit_and_not_ready() -> None:
+    client = TestClient(create_app())
+    health = client.get("/api/health")
+    assert health.status_code == 200
+    assert health.json()["status"] == "unconfigured"
+    assert "not configured" in health.json()["message"]
+    assert client.get("/api/ready").status_code == 503
+
+
+@pytest.mark.parametrize(("asr_ready", "status_code"), [(False, 503), (True, 200)])
+def test_readiness_requires_speech_and_text_services(asr_ready, status_code) -> None:
+    client = TestClient(
+        create_app(
+            readiness=lambda: HealthPayload(
+                status="ready" if asr_ready else "degraded",
+                asr_ready=asr_ready,
+                classifier_ready=True,
+                retrieval_ready=True,
+            )
+        )
+    )
+    assert client.get("/api/ready").status_code == status_code
