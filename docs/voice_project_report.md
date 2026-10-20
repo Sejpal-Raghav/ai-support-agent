@@ -2,6 +2,23 @@
 
 Author: Raghav Sejpal. Local checkpoint: 20 October 2026.
 
+Deployment update, 21 October 2026: the default Render image now runs the same six-layer,
+384-dimensional MiniLM neural encoder as a pinned 8-bit ONNX graph. A Rust tokenizer, masked
+mean pooling, and L2 normalization reproduce the sentence embedding pipeline without loading
+PyTorch. Intent seed similarity and same-intent retrieval remain unchanged. Speech uses
+`vosk-model-small-en-us-0.15` and FFmpeg to fit the free 512 MiB instance. A shared inference
+slot bounds simultaneous decoder/encoder allocations. The original PyTorch/large-Vosk local
+profile and separate training tools remain available.
+
+The compact encoder matched the original model's intent choices on all 43 fixed engineering
+probes (mean embedding cosine 0.9921, minimum 0.9805). This is a quantization compatibility
+check, not held-out task accuracy. The first Linux integration run passed at 512 MiB and 0.1 CPU,
+with swap/networking disabled and approximately 272 MiB peak memory. The synthetic WAV was
+transcribed correctly. See [the free-tier audit](render_free_audit_2026-10-21.md) for final evidence
+and limitations. The live target is <https://ai-support-agent-5e43.onrender.com/> and source is
+<https://github.com/Sejpal-Raghav/ai-support-agent>; a target URL alone does not prove a new deploy
+has become healthy. The older checkpoint details below are retained as historical context.
+
 ## Dataset and scope
 
 The project uses the locally available Kaggle Customer Support on Twitter corpus and AmazonHelp

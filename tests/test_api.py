@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -66,6 +69,49 @@ def test_response_failure_is_a_typed_service_error() -> None:
         "code": "response_unavailable",
         "message": "Response service unavailable.",
     }
+
+
+def test_audio_and_text_share_one_inference_slot_and_recover_after_failure():
+    entered = Event()
+    release = Event()
+
+    def held_transcriber(audio, content_type):
+        entered.set()
+        assert release.wait(timeout=5)
+        raise RuntimeError("fixture decoder failed")
+
+    client = TestClient(create_app(transcriber=held_transcriber))
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        in_flight = pool.submit(
+            client.post, "/api/transcribe",
+            files={"audio": ("fixture.wav", b"audio", "audio/wav")},
+        )
+        try:
+            assert entered.wait(timeout=5)
+            concurrent = client.post("/api/respond", json={"text": "where is my package?"})
+            assert concurrent.status_code == 503
+            assert client.get("/api/health").status_code == 200
+        finally:
+            release.set()
+        assert in_flight.result(timeout=5).status_code == 503
+    # A decoder error must release the slot; the normal unavailable fallback is 200.
+    assert client.post("/api/respond", json={"text": "where is my package?"}).status_code == 200
+
+
+def test_transcriber_reports_the_actual_selected_model(tmp_path, monkeypatch):
+    from support_agent.api import app as api
+
+    monkeypatch.setattr(api, "load_vosk_model", lambda _: object())
+    captured = {}
+
+    def fake_transcribe(audio, **kwargs):
+        captured.update(kwargs)
+        return TranscriptionResult("hello", 1000, kwargs["asr_model_version"], (), 12)
+
+    monkeypatch.setattr(api, "transcribe_webm_audio", fake_transcribe)
+    model = tmp_path / "vosk-model-small-en-us-0.15"
+    result = api.build_vosk_transcriber(model)(b"fixture", "audio/wav")
+    assert result.asr_model_version == model.name
 
 
 def test_static_frontend_is_served_after_api_routes(tmp_path) -> None:

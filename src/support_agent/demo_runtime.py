@@ -11,9 +11,10 @@ from typing import Literal
 import numpy as np
 
 from support_agent.api.app import ChatResult
+from support_agent.embeddings import EMBEDDING_REVISION, load_sentence_encoder
 from support_agent.hashing import verify_jsonl_sha256
 
-DEMO_EMBEDDING_REVISION = "c9745ed1d9f207416be6d2e6f8de32d1f16199bf"
+DEMO_EMBEDDING_REVISION = EMBEDDING_REVISION
 
 INTENT_SEEDS: dict[str, tuple[str, ...]] = {
     "delivery_tracking": (
@@ -172,9 +173,8 @@ class DemoSupportEngine:
         transformer_dir: Path | None = None,
         intent_threshold: float = 0.62,
         model_path: Path | None = None,
+        embedding_backend: str = "pytorch",
     ) -> None:
-        from sentence_transformers import SentenceTransformer
-
         self._cases = tuple(
             DemoCase(**json.loads(line))
             for line in cases_path.read_text(encoding="utf-8-sig").splitlines()
@@ -192,12 +192,9 @@ class DemoSupportEngine:
         if any(partitions.get(case.source_thread_id) != "train" for case in self._cases):
             raise ValueError("demo evidence includes a non-train source thread")
         self._index_version = f"amazonhelp-{corpus_hash[:12]}-{DEMO_EMBEDDING_REVISION[:8]}"
-        self._model = SentenceTransformer(
-            str(model_path) if model_path is not None else "sentence-transformers/all-MiniLM-L6-v2",
-            revision=None if model_path is not None else DEMO_EMBEDDING_REVISION,
-            device="cpu",
-            local_files_only=True,
-        )
+        self._model = load_sentence_encoder(model_path, embedding_backend)
+        self._embedding_backend = embedding_backend
+        self._index_version += f"-{embedding_backend}"
         self._case_embeddings = self._model.encode(
             [case.customer_text for case in self._cases],
             normalize_embeddings=True,
@@ -260,7 +257,9 @@ class DemoSupportEngine:
             intent_id = self._intent_ids[intent_position]
             confidence = float(np.clip((intent_scores[intent_position] + 1.0) / 2.0, 0.0, 1.0))
             score_type = "semantic_similarity"
-            classifier_version = f"minilm-semantic-demo-{DEMO_EMBEDDING_REVISION[:12]}"
+            classifier_version = (
+                f"minilm-{self._embedding_backend}-semantic-{DEMO_EMBEDDING_REVISION[:12]}"
+            )
         candidates = [
             index
             for index, case in enumerate(self._cases)

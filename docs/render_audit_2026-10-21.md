@@ -1,5 +1,10 @@
 # Render deployment audit and repair — 21 October 2026
 
+**Historical PyTorch image audit.** The default deployment was subsequently replaced with a
+compact ONNX + small Vosk runtime for Render Free. See
+[the superseding free-tier audit](render_free_audit_2026-10-21.md). The 1 GiB requirement and
+512 MiB failure below describe the previous PyTorch stack.
+
 ## Result and scope
 
 The repaired Docker image builds and runs the complete application on Linux. Real MiniLM intent

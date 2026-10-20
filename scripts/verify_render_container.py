@@ -18,7 +18,7 @@ spec = json.loads(__import__('sys').stdin.read())
 base = 'http://127.0.0.1:' + __import__('os').environ.get('PORT', '7860')
 def request(path, data=None, headers=None):
     req = urllib.request.Request(base + path, data=data, headers=headers or {})
-    with urllib.request.urlopen(req, timeout=90) as response:
+    with urllib.request.urlopen(req, timeout=180) as response:
         return response.status, response.read()
 status, raw = request('/api/ready')
 health = json.loads(raw)
@@ -44,8 +44,10 @@ voice = None
 if spec.get('audio'):
     boundary = 'support-agent-local-validation'
     audio = base64.b64decode(spec['audio'])
+    audio_type = spec.get('audio_type', 'audio/wav')
+    filename = spec.get('audio_filename', 'fixture.wav')
     body = (('--'+boundary+'\r\nContent-Disposition: form-data; name="audio"; '
-             'filename="fixture.wav"\r\nContent-Type: audio/wav\r\n\r\n').encode()
+             'filename="'+filename+'"\r\nContent-Type: '+audio_type+'\r\n\r\n').encode()
             + audio + ('\r\n--'+boundary+'--\r\n').encode())
     _, raw = request('/api/transcribe', body,
                      {'Content-Type':'multipart/form-data; boundary='+boundary})
@@ -101,7 +103,7 @@ def verify(args: argparse.Namespace) -> dict[str, object]:
             "--memory-swap",
             args.memory,
             "--cpus",
-            "2",
+            args.cpus,
             "--env",
             "PORT=10000",
             "--mount",
@@ -140,6 +142,10 @@ def verify(args: argparse.Namespace) -> dict[str, object]:
         if args.audio_fixture is not None:
             payload["audio"] = base64.b64encode(args.audio_fixture.read_bytes()).decode("ascii")
             payload["expected_transcript"] = args.expected_transcript
+            payload["audio_filename"] = args.audio_fixture.name
+            payload["audio_type"] = {
+                ".webm": "audio/webm", ".ogg": "audio/ogg",
+            }.get(args.audio_fixture.suffix.lower(), "audio/wav")
         smoke = docker(
             "exec", "-i", name, ".venv/bin/python", "-c", SMOKE_CODE, input_text=json.dumps(payload)
         )
@@ -172,12 +178,13 @@ def verify(args: argparse.Namespace) -> dict[str, object]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--image", default="support-agent:render-verified")
+    parser.add_argument("--image", default="support-agent:render-free")
     parser.add_argument(
         "--bundle", type=Path, default=Path("artifacts/render/support_agent_bundle.b64")
     )
-    parser.add_argument("--memory", default="2g")
-    parser.add_argument("--timeout", type=int, default=240)
+    parser.add_argument("--memory", default="512m")
+    parser.add_argument("--cpus", default="0.1")
+    parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument("--audio-fixture", type=Path)
     parser.add_argument("--expected-transcript")
     parser.add_argument(

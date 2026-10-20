@@ -138,15 +138,17 @@ taxonomy/annotation packets and record the held-out five-speaker audio set befor
 freezing accuracy, WER, coverage, latency, and task-success results. See
 [docs/local_completion_status.md](docs/local_completion_status.md) for exact gates.
 
-## Deployment (deferred)
+## Deployment
 
-For Render, follow [deployment/render/README.md](deployment/render/README.md). Both native Python
-and Docker paths prepare inference models and require the two local evidence files to be supplied
-through Render Secret Files. `/api/ready` returns success only when speech and text are ready.
+For Render Free, follow [deployment/render/README.md](deployment/render/README.md). The default
+Docker and native builds use 8-bit ONNX MiniLM and small Vosk to fit 512 MiB. Supply the private
+evidence bundle or existing matching evidence pair through Secret Files. `/api/ready` succeeds
+only when speech and text are ready. See [the free-tier audit](docs/render_free_audit_2026-10-21.md)
+for constrained Linux measurements and limits.
 
-`Dockerfile` builds the React assets and serves them from FastAPI on port `7860`. The Hugging Face
-Space metadata and deployment notes are in `deployment/huggingface/README.md`. A public deployment
-still requires a Hugging Face account, the Vosk model directory, and generated demo/model artifacts.
+`Dockerfile` builds the React assets and serves them from FastAPI using `PORT` (default `7860`;
+Render provides its own port). Alternative Hugging Face Space notes are in
+`deployment/huggingface/README.md`.
 
 See [docs/voice_assignment_requirements.md](docs/voice_assignment_requirements.md) for the
 requirement-to-evidence matrix. Reported evaluation results must come from held-out human labels

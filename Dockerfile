@@ -12,6 +12,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     STATIC_DIR=/app/static \
     HF_HOME=/app/artifacts/huggingface \
     MINILM_MODEL_PATH=/app/artifacts/models/minilm \
+    VOSK_MODEL_PATH=/app/artifacts/models/vosk-model-small-en-us-0.15 \
+    EMBEDDING_BACKEND=onnx \
     PYTHONPATH=/app/src \
     OMP_NUM_THREADS=1 \
     MKL_NUM_THREADS=1 \
@@ -24,14 +26,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HF_HUB_ETAG_TIMEOUT=60 \
     PORT=7860
 WORKDIR /app
-COPY pyproject.toml uv.lock README.md ./
+COPY deployment/render/requirements.txt ./requirements.txt
 RUN --mount=type=cache,target=/root/.cache/uv \
     pip install --no-cache-dir uv==0.8.15 \
-    && uv sync --frozen --no-dev --extra api --no-install-project \
-    && uv pip install --python .venv/bin/python torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu \
-    && uv pip install --python .venv/bin/python sentence-transformers==3.4.1 transformers==4.48.3 huggingface-hub==0.28.1
+    && uv venv --python /usr/local/bin/python .venv \
+    && uv pip install --python .venv/bin/python -r requirements.txt
 COPY scripts/prepare_render_models.py scripts/download_vosk_model.py ./scripts/
-RUN .venv/bin/python scripts/prepare_render_models.py
+RUN --mount=type=cache,target=/root/.cache/support-agent-models \
+    MODEL_DOWNLOAD_CACHE=/root/.cache/support-agent-models \
+    .venv/bin/python scripts/prepare_render_models.py
 COPY src/ ./src/
 COPY scripts/ ./scripts/
 COPY --from=frontend-build /app/frontend/dist /app/static

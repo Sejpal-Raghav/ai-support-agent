@@ -30,13 +30,18 @@ def container_memory_limit(cgroup_root: Path = Path("/sys/fs/cgroup")) -> int | 
     return None
 
 
-def validate_memory_budget(limit: int | None) -> None:
+def validate_memory_budget(limit: int | None, *, backend: str = "pytorch") -> None:
     """Explain an insufficient instance limit before the model loader is killed by the OS."""
-    if limit is not None and limit < 1024**3:
+    minimum = 512 * 1024**2 if backend == "onnx" else 1024**3
+    if limit is not None and limit < minimum:
         raise RuntimeError(
             f"Container memory limit is {limit // 1024**2} MiB. "
-            "This MiniLM + Vosk service requires at least 1 GiB; use 2 GiB for headroom. "
-            "A 512 MiB instance cannot load the tested inference stack."
+            + (
+                "The compact ONNX + small Vosk service requires at least 512 MiB."
+                if backend == "onnx"
+                else "The PyTorch service requires at least 1 GiB. "
+                "Use the compact ONNX Docker image for a free 512 MiB instance."
+            )
         )
 
 

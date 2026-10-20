@@ -116,6 +116,12 @@ def test_memory_preflight_accepts_unlimited_or_non_container_hosts(tmp_path):
     validate_memory_budget(None)
 
 
+def test_compact_backend_accepts_512_mib_but_rejects_less():
+    validate_memory_budget(512 * 1024**2, backend="onnx")
+    with pytest.raises(RuntimeError, match="at least 512 MiB"):
+        validate_memory_budget(256 * 1024**2, backend="onnx")
+
+
 def test_memory_preflight_reads_cgroup_v1(tmp_path):
     (tmp_path / "memory").mkdir()
     (tmp_path / "memory/memory.limit_in_bytes").write_text(str(2 * 1024**3), encoding="ascii")

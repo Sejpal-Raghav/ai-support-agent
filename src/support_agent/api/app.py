@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from threading import Lock
 from time import perf_counter
 from typing import Literal
 from uuid import uuid4
@@ -115,6 +117,22 @@ def create_app(
 
     active_responder = responder or unavailable_responder
     active_transcriber = transcriber or unavailable_transcriber
+    inference_lock = Lock()
+
+    @contextmanager
+    def inference_slot() -> Iterator[None]:
+        # Concurrent recognizers/encoders can exhaust a small container. Fail briefly
+        # instead of retaining a queue of audio uploads or allocating another decoder.
+        if not inference_lock.acquire(blocking=False):
+            raise RuntimeError("The service is busy. Please try again shortly.")
+        try:
+            yield
+        finally:
+            inference_lock.release()
+
+    def bounded_transcriber(audio: bytes, content_type: str | None) -> TranscriptionResult:
+        with inference_slot():
+            return active_transcriber(audio, content_type)
 
     @app.get("/api/health", response_model=HealthPayload)
     def health() -> HealthPayload:
@@ -143,7 +161,7 @@ def create_app(
             payload = await audio.read(MAX_AUDIO_BYTES + 1)
             if len(payload) > MAX_AUDIO_BYTES:
                 raise AudioValidationError("audio_too_large", "Audio must be at most 10 MB.")
-            result = await run_in_threadpool(active_transcriber, payload, audio.content_type)
+            result = await run_in_threadpool(bounded_transcriber, payload, audio.content_type)
         except AudioValidationError as error:
             raise HTTPException(
                 status_code=422,
@@ -162,7 +180,8 @@ def create_app(
     def respond(request: RespondRequest) -> RespondPayload:
         started = perf_counter()
         try:
-            result = active_responder(request.text.strip())
+            with inference_slot():
+                result = active_responder(request.text.strip())
         except RuntimeError as error:
             raise HTTPException(
                 status_code=503,
@@ -195,7 +214,12 @@ def build_vosk_transcriber(model_path: Path) -> Transcriber:
     load_vosk_model(str(model_path))
 
     def transcriber(audio: bytes, content_type: str | None) -> TranscriptionResult:
-        return transcribe_webm_audio(audio, content_type=content_type, model_path=model_path)
+        return transcribe_webm_audio(
+            audio,
+            content_type=content_type,
+            model_path=model_path,
+            asr_model_version=model_path.name,
+        )
 
     return transcriber
 
@@ -228,6 +252,7 @@ def build_application() -> FastAPI:
             model_path=Path(os.environ["MINILM_MODEL_PATH"])
             if os.environ.get("MINILM_MODEL_PATH")
             else None,
+            embedding_backend=os.environ.get("EMBEDDING_BACKEND", "pytorch"),
         )
     if vosk_path:
         transcriber = build_vosk_transcriber(Path(vosk_path))

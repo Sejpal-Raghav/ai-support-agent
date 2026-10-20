@@ -87,6 +87,34 @@ def test_render_startup_reports_missing_prepared_model(deployment_assets):
         configure_environment(root, secrets)
 
 
+def test_render_startup_detects_compact_models_without_training_libraries(deployment_assets):
+    root, secrets = deployment_assets
+    model = root / "artifacts/models/minilm"
+    (model / "modules.json").unlink()
+    (model / "model.onnx").write_bytes(b"fixture")
+    (model / "tokenizer.json").write_text("{}", encoding="utf-8")
+    small = root / "artifacts/models/vosk-model-small-en-us-0.15"
+    small.mkdir()
+    with patch.dict(os.environ, {}, clear=True):
+        configure_environment(root, secrets)
+        assert os.environ["EMBEDDING_BACKEND"] == "onnx"
+        assert Path(os.environ["VOSK_MODEL_PATH"]) == small
+
+
+def test_compact_startup_migrates_the_previous_builtin_speech_path(deployment_assets):
+    root, secrets = deployment_assets
+    legacy = root / "artifacts/models/vosk-model-en-us-0.22-lgraph"
+    legacy.rmdir()
+    small = root / "artifacts/models/vosk-model-small-en-us-0.15"
+    small.mkdir()
+    model = root / "artifacts/models/minilm"
+    (model / "model.onnx").write_bytes(b"fixture")
+    (model / "tokenizer.json").write_text("{}", encoding="utf-8")
+    with patch.dict(os.environ, {"VOSK_MODEL_PATH": str(legacy)}, clear=True):
+        configure_environment(root, secrets)
+        assert Path(os.environ["VOSK_MODEL_PATH"]) == small
+
+
 @pytest.mark.parametrize("bundle_exists", [False, True])
 def test_render_startup_respects_explicit_evidence_path_over_bundle(
     deployment_assets, bundle_exists

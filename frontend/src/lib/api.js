@@ -51,7 +51,7 @@ export function transcribeAudio(blob, options = {}) {
   const form = new FormData();
   const extension = blob.type.includes("ogg") ? "ogg" : "webm";
   form.append("audio", blob, `support-request.${extension}`);
-  return requestJson("/api/transcribe", { method: "POST", body: form, ...options }, 45000);
+  return requestJson("/api/transcribe", { method: "POST", body: form, ...options }, 180000);
 }
 
 export function requestSupport(text, options = {}) {
