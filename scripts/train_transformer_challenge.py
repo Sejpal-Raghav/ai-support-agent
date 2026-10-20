@@ -102,9 +102,7 @@ def main(
 ) -> None:
     """Run the fixed-budget challenger and write a validation-only selection manifest."""
     taxonomy = _load_taxonomy(taxonomy_path)
-    split_manifest = json.loads(
-        (artifacts_dir / "split_manifest.json").read_text(encoding="utf-8")
-    )
+    split_manifest = json.loads((artifacts_dir / "split_manifest.json").read_text(encoding="utf-8"))
     all_threads = _load_threads(artifacts_dir / "cohort_threads.jsonl")
     train_threads = [all_threads[str(value)] for value in split_manifest["train_thread_ids"]]
     selection = _validated_packet(
@@ -122,8 +120,16 @@ def main(
     training_records = build_pseudo_labeled_training_set(
         _load_clusters(artifacts_dir), taxonomy, train_threads
     )
+    validation_ids = set(split_manifest["validation_thread_ids"])
+    if any(record.thread_id not in validation_ids for record in [*selection, *calibration]):
+        raise ValueError("selection and calibration packets must belong to validation threads")
+    if {record.incoming_tweet_id for record in selection} & {
+        record.incoming_tweet_id for record in calibration
+    }:
+        raise ValueError("selection and calibration packets must contain distinct requests")
 
     candidates: list[ModelCandidate] = []
+    per_intent_scores: dict[str, dict[str, float]] = {}
     transformer_root = artifacts_dir / "models" / "transformers"
     for model_id in MODEL_IDS:
         model_dir = transformer_root / model_id.rsplit("/", 1)[-1]
@@ -142,6 +148,19 @@ def main(
                 labels=[intent.intent_id for intent in taxonomy.intents],
                 average="macro",
                 zero_division=0,
+            )
+        )
+        per_intent_scores[model_id] = dict(
+            zip(
+                [intent.intent_id for intent in taxonomy.intents],
+                f1_score(
+                    [record.intent_label for record in selection],
+                    predictions,
+                    labels=[intent.intent_id for intent in taxonomy.intents],
+                    average=None,
+                    zero_division=0,
+                ).tolist(),
+                strict=True,
             )
         )
         candidates.append(
@@ -180,6 +199,15 @@ def main(
         "confidence_threshold": threshold,
         "selected": winner.__dict__,
         "candidates": [candidate.__dict__ for candidate in candidates],
+        "validation_per_intent_f1": per_intent_scores,
+        "quality_gate_passed": (
+            winner.validation_macro_f1 >= 0.80
+            and all(
+                score >= 0.65
+                for intent, score in per_intent_scores[winner.model_id].items()
+                if intent != taxonomy.other_intent_id
+            )
+        ),
     }
     output_path = transformer_root / "selection.json"
     output_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")

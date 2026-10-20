@@ -12,6 +12,7 @@ async function requestJson(url, options = {}, timeoutMs = 30000) {
   const upstreamSignal = options.signal;
   const abortFromUpstream = () => controller.abort();
   upstreamSignal?.addEventListener("abort", abortFromUpstream, { once: true });
+  if (upstreamSignal?.aborted) controller.abort();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {

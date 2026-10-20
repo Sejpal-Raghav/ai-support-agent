@@ -35,7 +35,7 @@ describe("Support Listening Desk", () => {
     });
   });
 
-  it("displays typed text, grounded response, and truthful score metadata", async () => {
+  it("displays the response and clearly labelled intent without response details", async () => {
     vi.stubGlobal("fetch", vi.fn((url) => {
       if (url === "/api/health") {
         return jsonResponse({ status: "ready", asr_ready: true, classifier_ready: true, retrieval_ready: true });
@@ -52,8 +52,11 @@ describe("Support Listening Desk", () => {
 
     expect(await screen.findByText(responsePayload.response)).toBeVisible();
     expect(screen.getByText("Where is my delayed package?")).toBeVisible();
-    expect(screen.getByText("Intent similarity")).toBeInTheDocument();
-    expect(screen.getByText("AmazonHelp:test-case")).toBeInTheDocument();
+    expect(screen.getByText("Intent")).toBeVisible();
+    expect(screen.getByText("Delivery tracking")).toBeVisible();
+    expect(screen.queryByText("Response details")).not.toBeInTheDocument();
+    expect(screen.queryByText("Intent similarity")).not.toBeInTheDocument();
+    expect(screen.queryByText("AmazonHelp:test-case")).not.toBeInTheDocument();
   });
 
   it("turns microphone denial into a recoverable instruction", async () => {
@@ -93,5 +96,39 @@ describe("Support Listening Desk", () => {
 
     expect(await screen.findByText("My refund has not arrived")).toBeVisible();
     expect(screen.getByRole("button", { name: "Retry response" })).toBeVisible();
+  });
+
+  it("displays recognized speech while the answer is still pending", async () => {
+    let finishResponse;
+    window.MediaRecorder = class {
+      static isTypeSupported() { return true; }
+      start() { this.state = "recording"; }
+      stop() {
+        this.state = "inactive";
+        this.ondataavailable({ data: new Blob(["fixture"], { type: "audio/webm" }) });
+        this.onstop();
+      }
+    };
+    navigator.mediaDevices.getUserMedia.mockResolvedValue({ getTracks: () => [{ stop: vi.fn() }] });
+    vi.stubGlobal("fetch", vi.fn((url) => {
+      if (url === "/api/health") return jsonResponse({
+        status: "ready", asr_ready: true, classifier_ready: true, retrieval_ready: true,
+      });
+      if (url === "/api/transcribe") return jsonResponse({ transcript: "Where is my delayed package?" });
+      return new Promise((resolve) => { finishResponse = () => resolve({
+        ok: true, status: 200, json: () => Promise.resolve(responsePayload),
+      }); });
+    }));
+    const user = userEvent.setup();
+    render(<App />);
+    const start = await screen.findByRole("button", { name: "Start recording" });
+    await waitFor(() => expect(start).toBeEnabled());
+    await user.click(start);
+    await user.click(screen.getByRole("button", { name: "Stop recording" }));
+    expect(await screen.findByText("Where is my delayed package?")).toBeVisible();
+    expect(screen.getByText("Recognized speech")).toBeVisible();
+    expect(screen.getByText("Finding a supported answer…")).toBeVisible();
+    finishResponse();
+    expect(await screen.findByText(responsePayload.response)).toBeVisible();
   });
 });

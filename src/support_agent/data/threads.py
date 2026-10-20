@@ -104,6 +104,9 @@ def reconstruct_threads(messages: Sequence[RawMessage]) -> list[ReconstructedThr
     components: dict[str, list[str]] = defaultdict(list)
     for tweet_id in by_id:
         components[union_find.find(tweet_id)].append(tweet_id)
+    edges_by_component: dict[str, set[tuple[str, str]]] = defaultdict(set)
+    for parent, child in edges:
+        edges_by_component[union_find.find(parent)].add((parent, child))
 
     result: list[ReconstructedThread] = []
     for component_ids in components.values():
@@ -118,17 +121,17 @@ def reconstruct_threads(messages: Sequence[RawMessage]) -> list[ReconstructedThr
         outbound_count = len(component_messages) - inbound_count
         if inbound_count == 0 or outbound_count == 0:
             continue
-        component_edges = {
-            (parent, child)
-            for parent, child in edges
-            if parent in component_set and child in component_set
-        }
+        component_edges = edges_by_component[union_find.find(component_ids[0])]
         incoming = {child for _, child in component_edges}
         roots = tuple(sorted(component_set.difference(incoming)))
         ordered_messages = tuple(
             sorted(component_messages, key=lambda item: (item.created_at, item.tweet_id))
         )
-        thread_id = roots[0] if len(roots) == 1 else canonical_sha256(list(roots))[:20]
+        thread_id = (
+            roots[0]
+            if len(roots) == 1
+            else canonical_sha256(list(roots) if roots else sorted(component_set))[:20]
+        )
         component_dangling = sum(
             1
             for message in component_messages

@@ -9,11 +9,11 @@ historical resolution, and shows the evidence case ID behind its response.
 
 - Browser recording in Chrome/Edge, with server-side FFmpeg conversion and local Vosk transcription.
 - Neural intent classification using `sentence-transformers/all-MiniLM-L6-v2`.
-- Retrieval over 900 sanitized, problem-solving customer-to-AmazonHelp reply pairs from the local
-  Twitter subset.
+- Retrieval over 641 filtered, problem-solving customer-to-AmazonHelp reply pairs from connected,
+  chronologically partitioned train conversations in the local Twitter subset.
 - Safe fallback for low-confidence, weak-evidence, or credential-related requests.
 - Resilient React/Vite interface with listening level, timer, typed fallback, retry, transcript,
-  response, decision reason, and evidence-detail states.
+  response, and a clearly labelled intent.
 - Docker definition for a Hugging Face Docker Space.
 
 The repository also contains an executable BERTweet-versus-DeBERTa challenger. It trains both
@@ -21,7 +21,8 @@ models under the same fixed budget, selects on validation macro-F1 (warm p95 bre
 below `0.005`), fits temperature scaling on a separate validation packet, and selects a confidence
 cutoff targeting at least 90% accepted precision. MiniLM powers the current demo until the required
 human-reviewed labels are completed; the runtime automatically loads the selected transformer
-artifact when `artifacts/models/transformers/selection.json` exists.
+artifact when `artifacts/models/transformers/selection.json` exists and its validation quality
+gate has passed.
 
 ## Run the localhost demo
 
@@ -30,6 +31,7 @@ Requirements: Python 3.11, `uv`, Node.js 20+, and Chrome or Edge.
 ```powershell
 uv sync --frozen --extra data --extra ml --extra api --extra dev
 uv run --extra api python scripts/download_vosk_model.py
+uv run --extra ml python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2', revision='c9745ed1d9f207416be6d2e6f8de32d1f16199bf')"
 cd frontend
 npm ci
 npm run build
@@ -37,9 +39,11 @@ cd ..
 uv run --extra ml --extra api python scripts/run_local.py
 ```
 
-Open [http://127.0.0.1:7860](http://127.0.0.1:7860). The first launch downloads and caches the
-MiniLM model. Allow microphone access, press **Talk**, speak for less than 30 seconds, and press
-**Stop**. The browser recording is transcribed locally by Vosk; typed input remains available.
+The setup commands download dependencies and models once. Runtime uses the pinned cached MiniLM
+revision and does not download models. With the existing cache, run with `uv run --offline`.
+Open [http://127.0.0.1:7860](http://127.0.0.1:7860). Allow microphone access, press
+**Start recording**, speak for less than 30 seconds, and press **Stop recording**. The recording
+is transcribed locally by Vosk; typed input remains available.
 
 Startup can take roughly one minute on CPU while Vosk loads. The header changes from **Starting**
 to **Ready** only after the ASR, classifier, and retrieval components are loaded.
@@ -108,9 +112,14 @@ npm run build
 npm audit --omit=dev
 ```
 
-Current local verification: 64 Python tests and 3 frontend behavior tests pass; Ruff and strict
-mypy pass; the frontend production build succeeds and its dependency audit reports zero
-vulnerabilities.
+Current local verification: 93 Python tests and 6 frontend behavior tests pass; Ruff and strict
+mypy pass; the frontend production build succeeds. No remote dependency audit was run during
+this local-only checkpoint.
+
+See the [local audit](docs/local_audit_2026-10-20.md),
+[project report](docs/voice_project_report.md), and
+[held-out voice evaluation workflow](docs/voice_evaluation.md) for measured evidence and remaining
+acceptance gates.
 
 ## Safety and privacy boundaries
 

@@ -63,12 +63,15 @@ def train_transformer(
             EarlyStoppingCallback,
             Trainer,
             TrainingArguments,
+            set_seed,
         )
     except ImportError as error:
         raise RuntimeError("Install the ml dependency group to train the transformer.") from error
 
+    set_seed(config.seed)
     label_to_id = {label: index for index, label in enumerate(labels)}
     tokenizer = AutoTokenizer.from_pretrained(config.model_id, use_fast=False)
+
     class TextDataset(Dataset[dict[str, torch.Tensor]]):
         def __init__(self, texts: Sequence[str], target_labels: Sequence[str]) -> None:
             self._labels = target_labels
@@ -190,6 +193,7 @@ class TransformerIntentPredictor:
         self._model = AutoModelForSequenceClassification.from_pretrained(model_dir)
         self._model.eval()
         self._version = str(manifest["model_version"])
+        self._max_length = int(manifest["config"]["max_length"])
         calibration_path = model_dir / "intent_temperature.json"
         self._temperature = (
             float(json.loads(calibration_path.read_text(encoding="utf-8"))["temperature"])
@@ -208,7 +212,11 @@ class TransformerIntentPredictor:
         if not texts:
             raise ValueError("prediction requires at least one text")
         tokens = self._tokenizer(
-            list(texts), return_tensors="pt", padding=True, truncation=True, max_length=128
+            [normalize_customer_text(text) for text in texts],
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=self._max_length,
         )
         with self._torch.no_grad():
             return np.asarray(self._model(**tokens).logits.cpu().numpy(), dtype=np.float64)

@@ -26,4 +26,10 @@ def test_confidence_threshold_uses_lowest_safe_validation_cutoff() -> None:
 
 
 def test_confidence_threshold_fails_closed_when_support_is_too_small() -> None:
-    assert select_confidence_threshold([0.99] * 10, [True] * 10) == 1.0
+    with pytest.raises(ValueError, match="no confidence threshold"):
+        select_confidence_threshold([0.99] * 10, [True] * 10)
+
+
+def test_zero_tie_margin_selects_the_best_f1() -> None:
+    candidate = ModelCandidate("best", "best", 0.81, 10.0)
+    assert select_model_candidate([candidate], f1_tie_margin=0.0) == candidate

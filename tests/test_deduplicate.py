@@ -1,6 +1,10 @@
 from datetime import UTC, datetime, timedelta
 
-from support_agent.data.deduplicate import remove_exact_duplicate_threads
+from support_agent.data.deduplicate import (
+    audit_cross_split_near_duplicates,
+    remove_exact_duplicate_threads,
+)
+from support_agent.data.split import ThreadSplits
 from support_agent.schemas import RawMessage, ReconstructedThread
 
 
@@ -46,3 +50,20 @@ def test_exact_duplicate_keeps_earliest_thread() -> None:
     retained, audit = remove_exact_duplicate_threads([newer, earlier])
     assert [thread.thread_id for thread in retained] == ["earlier"]
     assert audit.exact_groups[0].discarded_thread_ids == ("newer",)
+
+
+def test_near_duplicate_audit_handles_batch_boundaries_and_excludes_same_split() -> None:
+    import numpy as np
+
+    class Encoder:
+        def encode(self, texts):
+            return np.tile(np.asarray([1.0, 0.0], dtype=np.float32), (len(texts), 1))
+
+    splits = ThreadSplits(
+        train=tuple(_thread(str(index), index, "same request") for index in range(130)),
+        validation=(_thread("validation", 131, "same request"),),
+        test=(_thread("test", 132, "same request"),),
+    )
+    audit = audit_cross_split_near_duplicates(splits, Encoder())
+    assert len(audit.near_duplicate_pairs) == 261
+    assert all(pair.left_split != pair.right_split for pair in audit.near_duplicate_pairs)

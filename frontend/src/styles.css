@@ -106,6 +106,9 @@ h2 { margin: 0; font-size: 17px; line-height: 1.4; }
 .source-label { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
 .transcript-text, .response-text { max-width: 68ch; margin: 16px 0 0; font-size: 18px; line-height: 1.6; }
 .empty-copy { margin: 16px 0 0; color: var(--muted); font-size: 16px; line-height: 1.55; }
+.response-intent { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
+.response-intent dt { color: var(--muted); font-size: 14px; font-weight: 600; }
+.response-intent dd { margin: 0; padding: 6px 12px; border-radius: 8px; background: var(--accent-soft); color: #19459e; font-weight: 600; }
 .action-label { display: inline-flex; min-height: 30px; align-items: center; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: #19459e; font-size: 13px; font-weight: 600; }
 .action-label--fallback, .action-label--escalate { background: #fff2d7; color: #754f00; }
 .decision-copy, .human-note { max-width: 68ch; margin: 12px 0 0; color: #754f00; font-size: 14px; line-height: 1.5; }

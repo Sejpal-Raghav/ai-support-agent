@@ -69,3 +69,17 @@ def test_multi_brand_component_is_excluded() -> None:
         ]
     )
     assert threads == []
+
+
+def test_distinct_cyclic_components_have_unique_stable_ids() -> None:
+    messages = [
+        _message("1", "customer", True, 0, parent="2"),
+        _message("2", "BrandHelp", False, 1, parent="1"),
+        _message("3", "customer", True, 2, parent="4"),
+        _message("4", "BrandHelp", False, 3, parent="3"),
+    ]
+    threads = reconstruct_threads(messages)
+    assert len({thread.thread_id for thread in threads}) == 2
+    assert [thread.thread_id for thread in threads] == [
+        thread.thread_id for thread in reconstruct_threads(list(reversed(messages)))
+    ]

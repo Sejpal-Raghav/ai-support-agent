@@ -13,9 +13,11 @@ from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from starlette.concurrency import run_in_threadpool
 
 from support_agent.voice.transcription import (
+    MAX_AUDIO_BYTES,
     AudioValidationError,
     TranscriptionResult,
     load_vosk_model,
@@ -28,6 +30,14 @@ class RespondRequest(BaseModel):
 
     text: str = Field(min_length=1, max_length=1000)
     session_id: str | None = Field(default=None, max_length=128)
+
+    @field_validator("text")
+    @classmethod
+    def nonblank_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("text must contain a non-whitespace character")
+        return value
 
 
 class RespondPayload(BaseModel):
@@ -118,7 +128,10 @@ def create_app(
     @app.post("/api/transcribe")
     async def transcribe(audio: UploadFile = File(...)) -> dict[str, object]:
         try:
-            result = active_transcriber(await audio.read(), audio.content_type)
+            payload = await audio.read(MAX_AUDIO_BYTES + 1)
+            if len(payload) > MAX_AUDIO_BYTES:
+                raise AudioValidationError("audio_too_large", "Audio must be at most 10 MB.")
+            result = await run_in_threadpool(active_transcriber, payload, audio.content_type)
         except AudioValidationError as error:
             raise HTTPException(
                 status_code=422,
@@ -129,6 +142,8 @@ def create_app(
                 status_code=503,
                 detail={"code": "asr_unavailable", "message": str(error)},
             ) from error
+        finally:
+            await audio.close()
         return asdict(result)
 
     @app.post("/api/respond", response_model=RespondPayload)
@@ -190,6 +205,10 @@ def build_application() -> FastAPI:
             selection = json.loads(
                 Path(transformer_selection_path).read_text(encoding="utf-8")
             )
+            if selection.get("quality_gate_passed") is not True:
+                raise RuntimeError(
+                    "The selected transformer has not passed validation quality gates."
+                )
             transformer_dir = Path(selection["selected"]["artifact_dir"])
             intent_threshold = float(selection["confidence_threshold"])
         responder = DemoSupportEngine(

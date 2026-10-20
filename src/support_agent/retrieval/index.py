@@ -163,7 +163,7 @@ def retrieve_cases(
             customer_text=index.cases[position].customer_text,
             brand_reply_text=index.cases[position].brand_reply_text,
             intent_id=index.cases[position].intent_id,
-            similarity=float(scores[position]),
+            similarity=float(np.clip(scores[position], -1.0, 1.0)),
             mmr_score=mmr_score,
             rank=rank,
             source_uri=index.cases[position].source_uri,

@@ -106,13 +106,23 @@ def audit_cross_split_near_duplicates(
     if len(entries) < 2:
         return DuplicateAudit(exact_groups=())
     embeddings = _normalize_embeddings(embedder.encode([entry[2] for entry in entries]))
-    similarities = embeddings @ embeddings.T
     pairs: list[NearDuplicatePair] = []
-    for left_index, (left_split, left_thread, _) in enumerate(entries):
-        for right_index in range(left_index + 1, len(entries)):
-            right_split, right_thread, _ = entries[right_index]
-            score = float(similarities[left_index, right_index])
-            if left_split != right_split and score >= cosine_threshold:
+    # Bound working memory instead of allocating an N-by-N similarity matrix.
+    split_names = np.asarray([entry[0] for entry in entries])
+    for start in range(0, len(entries), 128):
+        stop = min(start + 128, len(entries))
+        similarities = embeddings[start:stop] @ embeddings.T
+        eligible = (similarities >= cosine_threshold) & (
+            split_names[start:stop, None] != split_names[None, :]
+        )
+        eligible &= np.arange(len(entries))[None, :] > np.arange(start, stop)[:, None]
+        left_positions, right_positions = np.nonzero(eligible)
+        for left_offset, right_index in zip(left_positions, right_positions, strict=True):
+            left_index = start + int(left_offset)
+            left_split, left_thread, _ = entries[left_index]
+            right_split, right_thread, _ = entries[int(right_index)]
+            score = float(np.clip(similarities[left_offset, right_index], -1.0, 1.0))
+            if left_split != right_split:
                 pairs.append(
                     NearDuplicatePair(
                         left_split=left_split,

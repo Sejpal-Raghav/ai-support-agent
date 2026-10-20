@@ -5,19 +5,23 @@
 - Browser microphone recording with level meter, 30-second timer, cancel, cleanup, and typed fallback.
 - In-memory FFmpeg conversion and Vosk transcription with typed errors for silence, format, size,
   duration, conversion, and model failures.
-- Neural MiniLM intent/retrieval localhost demo over 900 sanitized AmazonHelp cases.
+- Neural MiniLM intent/retrieval localhost demo over 641 filtered, traceable train AmazonHelp cases.
 - Train-only evidence IDs, same-intent retrieval, safety sanitization, and fallback reasons.
 - BERTweet/DeBERTa fixed-budget training, early stopping, validation-only comparison, temperature
   scaling, selective confidence thresholding, and automatic runtime loading of the winner.
 - React states for startup, permission, recording, transcription, response, retry, and evidence.
-- 64 Python tests, 3 frontend behavior tests, Ruff, strict mypy, production build, and npm audit.
+- 93 Python tests, 6 frontend behavior tests, Ruff, strict mypy, and production build.
+- Local voice WER evaluator with strict sample/noise gates and cached reproduction.
+
+The detailed findings and current limitations are recorded in
+[the 20 October audit](local_audit_2026-10-20.md).
 
 ## Human evidence still required
 
 These tasks cannot be automated without invalidating the assignment evidence:
 
 1. Review the cluster-derived 6–10 intent taxonomy.
-2. Hand-label 100 model-selection, 100 calibration, 100 policy, and 200 untouched golden examples
+2. Hand-label 100 model-selection, 100 calibration, 200 policy, and 200 untouched golden examples
    using `data/annotations/annotation_guidelines.md`.
 3. Blindly re-rate the specified consistency subsample and independently rate at least 50 judged
    replies for Cohen's kappa.

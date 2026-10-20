@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from support_agent.api.app import ChatResult, HealthPayload, create_app
@@ -73,3 +74,36 @@ def test_static_frontend_is_served_after_api_routes(tmp_path) -> None:
     client = TestClient(app)
     assert client.get("/").text == "<h1>Listening desk</h1>"
     assert client.get("/api/health").status_code == 200
+
+
+def test_blank_text_is_rejected_before_inference() -> None:
+    called = []
+    client = TestClient(create_app(responder=lambda text: called.append(text)))
+    response = client.post("/api/respond", json={"text": " \t\n "})
+    assert response.status_code == 422
+    assert not called
+
+
+def test_oversized_upload_is_rejected_before_transcription() -> None:
+    from support_agent.voice.transcription import MAX_AUDIO_BYTES
+
+    called = []
+    client = TestClient(create_app(transcriber=lambda *args: called.append(args)))
+    response = client.post(
+        "/api/transcribe",
+        files={"audio": ("clip.wav", b"x" * (MAX_AUDIO_BYTES + 1), "audio/wav")},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "audio_too_large"
+    assert not called
+
+
+def test_unvalidated_transformer_cannot_be_served(tmp_path, monkeypatch) -> None:
+    from support_agent.api.app import build_application
+
+    selection = tmp_path / "selection.json"
+    selection.write_text('{"quality_gate_passed": false}', encoding="utf-8")
+    monkeypatch.setenv("DEMO_CASES_PATH", str(tmp_path / "cases.jsonl"))
+    monkeypatch.setenv("TRANSFORMER_SELECTION_PATH", str(selection))
+    with pytest.raises(RuntimeError, match="validation quality gates"):
+        build_application()

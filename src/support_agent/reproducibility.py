@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -17,7 +18,7 @@ class FrozenArtifactManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     schema_version: str = "1"
-    source_manifest_sha256: str = Field(min_length=64, max_length=64)
+    source_manifest_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     files: dict[str, str] = Field(min_length=1)
 
 
@@ -39,8 +40,19 @@ def freeze_artifacts(
     source_manifest_sha256: str,
 ) -> FrozenArtifactManifest:
     """Copy explicit result files into the frozen directory and record exact SHA-256 hashes."""
-    if len(source_manifest_sha256) != 64:
-        raise ValueError("source manifest SHA-256 must be exactly 64 characters")
+    if re.fullmatch(r"[a-f0-9]{64}", source_manifest_sha256) is None:
+        raise ValueError("source manifest SHA-256 must be 64 lowercase hex characters")
+    if not source_files:
+        raise ValueError("at least one result file must be frozen")
+    names = [source.name for source in source_files]
+    if len(names) != len(set(names)) or "manifest.json" in names:
+        raise ValueError("frozen source basenames must be unique and cannot be manifest.json")
+    for source in source_files:
+        if not source.is_file():
+            raise ValueError(f"frozen source file does not exist: {source}")
+        if (frozen_dir / source.name).resolve() == source.resolve():
+            raise ValueError("cannot freeze a file already inside frozen_dir")
+        _relative_path(frozen_dir, frozen_dir / source.name)
     frozen_dir.mkdir(parents=True, exist_ok=True)
     hashes: dict[str, str] = {}
     for source in source_files:
@@ -70,6 +82,7 @@ def verify_frozen_artifacts(frozen_dir: Path, manifest: FrozenArtifactManifest) 
     """Raise if any frozen result is missing or hash-mismatched."""
     for relative, expected_hash in manifest.files.items():
         candidate = frozen_dir / relative
+        _relative_path(frozen_dir, candidate)
         if not candidate.is_file():
             raise ValueError(f"frozen artifact is missing: {relative}")
         if file_sha256(candidate) != expected_hash:

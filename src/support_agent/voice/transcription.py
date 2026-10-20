@@ -90,6 +90,8 @@ def convert_to_pcm_wav(audio: bytes, *, ffmpeg_binary: str = "ffmpeg") -> bytes:
         "error",
         "-i",
         "pipe:0",
+        "-t",
+        str(MAX_AUDIO_SECONDS + 1),
         "-ac",
         "1",
         "-ar",
@@ -150,6 +152,7 @@ def transcribe_pcm_wav(
     *,
     recognizer: _Recognizer,
     asr_model_version: str,
+    allow_empty_transcript: bool = False,
 ) -> TranscriptionResult:
     """Transcribe a validated PCM WAV stream without retaining audio or transcript state."""
     started = time.perf_counter()
@@ -157,6 +160,11 @@ def transcribe_pcm_wav(
     samples = np.frombuffer(pcm_frames, dtype="<i2").astype(np.float32) / 32768.0
     rms = float(np.sqrt(np.mean(np.square(samples)))) if samples.size else 0.0
     if rms < 0.002:
+        if allow_empty_transcript:
+            return TranscriptionResult(
+                "", duration_ms, asr_model_version, ("empty_transcript",),
+                round((time.perf_counter() - started) * 1000),
+            )
         raise AudioValidationError("empty_transcript", "No speech was detected. Please try again.")
     text_parts: list[str] = []
     for offset in range(0, len(pcm_frames), 4000):
@@ -169,13 +177,13 @@ def transcribe_pcm_wav(
     if final_text:
         text_parts.append(final_text)
     transcript = " ".join(text_parts).strip()
-    if not transcript:
+    if not transcript and not allow_empty_transcript:
         raise AudioValidationError("empty_transcript", "No speech was detected. Please try again.")
     return TranscriptionResult(
         transcript=transcript,
         duration_ms=duration_ms,
         asr_model_version=asr_model_version,
-        warnings=(),
+        warnings=() if transcript else ("empty_transcript",),
         latency_ms=round((time.perf_counter() - started) * 1000),
     )
 
@@ -187,6 +195,7 @@ def transcribe_webm_audio(
     model_path: Path,
     asr_model_version: str = "vosk-model-en-us-0.22-lgraph",
     ffmpeg_binary: str = "ffmpeg",
+    allow_empty_transcript: bool = False,
 ) -> TranscriptionResult:
     """Convert and transcribe one browser recording using a local Vosk model."""
     validate_audio_payload(audio, content_type)
@@ -205,6 +214,7 @@ def transcribe_webm_audio(
         wav_bytes,
         recognizer=recognizer,
         asr_model_version=asr_model_version,
+        allow_empty_transcript=allow_empty_transcript,
     )
 
 

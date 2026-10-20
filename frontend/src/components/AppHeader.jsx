@@ -1,6 +1,6 @@
 export function AppHeader({ serviceStatus }) {
   const ready = serviceStatus === "ready";
-  const label = ready ? "Ready" : serviceStatus === "partial" ? "Text only" : "Starting";
+  const label = ready ? "Ready" : serviceStatus === "partial" ? "Text only" : serviceStatus === "unavailable" ? "Unavailable" : "Starting";
   return (
     <header className="app-header">
       <div className="brand-row">

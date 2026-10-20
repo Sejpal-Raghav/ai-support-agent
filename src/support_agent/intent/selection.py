@@ -26,7 +26,8 @@ def select_model_candidate(
     competitive = [
         candidate
         for candidate in candidates
-        if best_f1 - candidate.validation_macro_f1 < f1_tie_margin
+        if candidate.validation_macro_f1 == best_f1
+        or best_f1 - candidate.validation_macro_f1 < f1_tie_margin
     ]
     return min(
         competitive,
@@ -62,4 +63,4 @@ def select_confidence_threshold(
         precision = sum(bool(correct[index]) for index in accepted) / len(accepted)
         if precision >= target_precision:
             return threshold
-    return 1.0
+    raise ValueError("no confidence threshold meets the validation precision and support gates")

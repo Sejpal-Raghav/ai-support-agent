@@ -35,8 +35,8 @@ def main(
         )
     manifest = load_frozen_manifest(manifest_path)
     required_headline_files(manifest)
-    if verify_hashes:
-        verify_frozen_artifacts(frozen_dir, manifest)
+    del verify_hashes  # Retained for CLI compatibility; verification is always required.
+    verify_frozen_artifacts(frozen_dir, manifest)
     headline_path = frozen_dir / "headline_metrics.json"
     headline = json.loads(headline_path.read_text(encoding="utf-8"))
     typer.echo(json.dumps(headline, indent=2, sort_keys=True))

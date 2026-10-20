@@ -19,6 +19,8 @@ export function useVoiceRecorder(onAudioReady) {
     discard: false,
   });
   const callbackRef = useRef(onAudioReady);
+  const generationRef = useRef(0);
+  const startingRef = useRef(false);
   callbackRef.current = onAudioReady;
 
   const cleanup = useCallback(() => {
@@ -43,6 +45,7 @@ export function useVoiceRecorder(onAudioReady) {
   }, []);
 
   const start = useCallback(async () => {
+    if (startingRef.current || refs.current.recorder) return;
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       setState({
         status: "idle",
@@ -53,8 +56,15 @@ export function useVoiceRecorder(onAudioReady) {
       return;
     }
     setState({ status: "requesting_permission", elapsed: 0, level: 0, error: "" });
+    startingRef.current = true;
+    const generation = ++generationRef.current;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (generation !== generationRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      refs.current.stream = stream;
       const mimeType = preferredMimeType();
       if (!mimeType) throw Object.assign(new Error("unsupported"), { name: "NotSupportedError" });
       const recorder = new MediaRecorder(stream, { mimeType });
@@ -62,6 +72,7 @@ export function useVoiceRecorder(onAudioReady) {
       let failed = false;
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       const context = AudioContextClass ? new AudioContextClass() : null;
+      refs.current.context = context;
       const analyser = context?.createAnalyser();
       if (analyser) {
         analyser.fftSize = 256;
@@ -101,6 +112,7 @@ export function useVoiceRecorder(onAudioReady) {
         });
       };
       recorder.onstop = () => {
+        if (failed || generation !== generationRef.current) return;
         const discard = failed || refs.current.discard;
         cleanup();
         setState({ status: "idle", elapsed: 0, level: 0, error: "" });
@@ -116,13 +128,25 @@ export function useVoiceRecorder(onAudioReady) {
       updateLevel();
       setState({ status: "recording", elapsed: 0, level: 0, error: "" });
     } catch (error) {
+      if (generation !== generationRef.current) return;
       cleanup();
       const code = microphoneErrorCode(error);
       setState({ status: "idle", elapsed: 0, level: 0, error: errorMessage(code) });
+    } finally {
+      if (generation === generationRef.current) startingRef.current = false;
     }
   }, [cleanup, stop]);
 
-  useEffect(() => cleanup, [cleanup]);
+  useEffect(() => () => {
+    generationRef.current += 1;
+    startingRef.current = false;
+    const recorder = refs.current.recorder;
+    if (recorder?.state === "recording") {
+      recorder.onstop = null;
+      recorder.stop();
+    }
+    cleanup();
+  }, [cleanup]);
 
   return {
     ...state,

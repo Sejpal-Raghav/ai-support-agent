@@ -11,6 +11,9 @@ from typing import Literal
 import numpy as np
 
 from support_agent.api.app import ChatResult
+from support_agent.hashing import file_sha256
+
+DEMO_EMBEDDING_REVISION = "c9745ed1d9f207416be6d2e6f8de32d1f16199bf"
 
 INTENT_SEEDS: dict[str, tuple[str, ...]] = {
     "delivery_tracking": (
@@ -45,7 +48,40 @@ _HANDLE = re.compile(r"@\w+")
 _URL = re.compile(r"https?://\S+")
 _DIRECT_NAME = re.compile(r",\s+[A-Z][a-z]{1,20}(?=[!,.])")
 _AGENT_SIGNATURE = re.compile(r"\s*\^[A-Z]{1,3}\s*$")
-_UNSAFE = re.compile(r"\b(password|passcode|pin|cvv|card number|social security)\b", re.I)
+_UNSAFE = re.compile(
+    r"\b(password|passcode|pin|cvv|card number|social security|verification code|"
+    r"one.time (?:password|code)|otp|2fa)\b",
+    re.I,
+)
+_CONTACT = re.compile(r"[\w.+-]+@[\w.-]+\.[a-z]{2,}|\b(?:\d[ ()+.-]*){7,}\d\b", re.I)
+_PERSONAL_NAME = re.compile(
+    r"\b(?:Hi|Hello|Hey)[, ]+[A-Z][a-z]{1,20}\b|"
+    r"\b(?:account|order|help|you|that|this)[, ]+[A-Z][a-z]{1,20}(?=[!?,.])"
+)
+_BILLING_RISK = re.compile(
+    r"\b(charged twice|double charged|duplicate charge|unauthori[sz]ed|fraud|chargeback)\b", re.I
+)
+_CONTEXT_BOUND = re.compile(
+    r"\b(?:previous|earlier|above|below|following) (?:link|message|reply)\b|"
+    r"\b(?:don't|do not|didn't|did not) want\b",
+    re.I,
+)
+_REPLY_INTENT_CUES = {
+    "delivery_tracking": r"\b(track|deliver|carrier|package|parcel|shipment)\w*\b",
+    "return_refund": r"\b(return|refund|exchange)\w*\b",
+    "damaged_or_wrong_item": r"\b(replac|damag|defect|broken|wrong item)\w*\b",
+    "account_or_payment": r"\b(account|payment|charg|billing|sign in|log in)\w*\b",
+    "order_change_or_cancel": r"\b(cancel|modif|address|chang)\w*\b",
+    "product_or_stock": r"\b(stock|availab|product information|product details)\w*\b",
+}
+_ACCOUNT_CLAIM = re.compile(
+    r"\b(?:we|i)(?:['’]ve| have| already| just| can| will|'ll|’ll)?\s+"
+    r"(?:have\s+)?(?:refunded|refund|cancelled|canceled|cancel|credited|unlocked|"
+    r"replaced|processed|checked|accessed|issued)\b|"
+    r"\b(?:your|the) (?:refund|replacement|order|account) (?:has been|was) "
+    r"(?:processed|issued|cancelled|canceled|updated|checked|refunded)\b",
+    re.I,
+)
 _CUSTOMER_PROBLEM = re.compile(
     r"\b(help|issue|problem|wrong|damag|broken|defect|missing|late|delay|lost|"
     r"refund|return|cancel|change|charged|declin|cannot|can't|won't|not|never|"
@@ -70,6 +106,8 @@ class DemoCase:
     customer_text: str
     reply_text: str
     intent_id: str
+    source_thread_id: str
+    split: str
 
 
 def is_support_exchange(customer_text: str, reply_text: str) -> bool:
@@ -85,6 +123,7 @@ def sanitize_historical_reply(text: str) -> str:
     """Remove user handles and links before showing a public historical reply."""
     cleaned = _HANDLE.sub("", text)
     cleaned = _URL.sub("", cleaned)
+    cleaned = _CONTACT.sub("[private details removed]", cleaned)
     cleaned = _DIRECT_NAME.sub("", cleaned)
     cleaned = _AGENT_SIGNATURE.sub("", cleaned).strip()
     cleaned = re.sub(r"\s+", " ", cleaned)
@@ -94,6 +133,33 @@ def sanitize_historical_reply(text: str) -> str:
     cleaned = re.sub(r"\s*([:,-])\s*$", "", cleaned)
     cleaned = re.sub(r"\s+here$", "", cleaned, flags=re.IGNORECASE)
     return cleaned.strip()
+
+
+def is_safe_historical_reply(text: str) -> bool:
+    """Reject credentials, private contact data, and claims of completed account actions."""
+    return not bool(
+        _UNSAFE.search(text)
+        or _CONTACT.search(text)
+        or _ACCOUNT_CLAIM.search(text)
+        or _PERSONAL_NAME.search(text)
+        or _CONTEXT_BOUND.search(text)
+    )
+
+
+def is_relevant_historical_reply(
+    text: str, intent_id: str, customer_text: str | None = None
+) -> bool:
+    """Require a concrete same-intent cue instead of a generic social/support reply."""
+    pattern = _REPLY_INTENT_CUES.get(intent_id)
+    if pattern is None or re.search(pattern, text, re.I) is None:
+        return False
+    if intent_id == "return_refund" and customer_text is not None:
+        for operation in ("return", "refund"):
+            if re.search(rf"\b{operation}\w*\b", customer_text, re.I) and not re.search(
+                rf"\b{operation}\w*\b", text, re.I
+            ):
+                return False
+    return True
 
 
 class DemoSupportEngine:
@@ -115,7 +181,22 @@ class DemoSupportEngine:
         )
         if not self._cases:
             raise ValueError("the local demo corpus is empty")
-        self._model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", device="cpu")
+        if any(case.split != "train" or not case.source_thread_id for case in self._cases):
+            raise ValueError("the demo corpus must contain only traceable train cases")
+        corpus_hash = file_sha256(cases_path)
+        manifest = json.loads(cases_path.with_suffix(".manifest.json").read_text(encoding="utf-8"))
+        if manifest.get("corpus_sha256") != corpus_hash:
+            raise ValueError("the demo corpus hash does not match its manifest")
+        partitions = manifest["thread_partitions"]
+        if any(partitions.get(case.source_thread_id) != "train" for case in self._cases):
+            raise ValueError("demo evidence includes a non-train source thread")
+        self._index_version = f"amazonhelp-{corpus_hash[:12]}-{DEMO_EMBEDDING_REVISION[:8]}"
+        self._model = SentenceTransformer(
+            "sentence-transformers/all-MiniLM-L6-v2",
+            revision=DEMO_EMBEDDING_REVISION,
+            device="cpu",
+            local_files_only=True,
+        )
         self._case_embeddings = self._model.encode(
             [case.customer_text for case in self._cases], normalize_embeddings=True
         )
@@ -132,6 +213,32 @@ class DemoSupportEngine:
             self._transformer = TransformerIntentPredictor(transformer_dir)
 
     def __call__(self, text: str) -> ChatResult:
+        private_request = bool(_UNSAFE.search(text) or _CONTACT.search(text))
+        if private_request or _BILLING_RISK.search(text):
+            return ChatResult(
+                intent="account_or_payment",
+                confidence=0.0,
+                score_type="semantic_similarity",
+                retrieval_similarity=None,
+                response=(
+                    "Please keep passwords, verification codes, and private details out of chat. "
+                    "Use Amazon’s official app or website to contact support securely. "
+                    "This demo cannot access or change your account."
+                )
+                if private_request
+                else (
+                    "A billing specialist should review duplicate or unauthorized charges. "
+                    "Contact support through Amazon’s official app or website. "
+                    "This demo cannot check charges or issue refunds."
+                ),
+                action="fallback",
+                reasons=(
+                    "privacy_or_credential_risk" if private_request else "money_or_billing_risk",
+                ),
+                evidence_case_ids=(),
+                classifier_version="safety-rules-v1",
+                retrieval_index_version=self._index_version,
+            )
         query = self._model.encode([text], normalize_embeddings=True)[0]
         if self._transformer is not None:
             prediction = self._transformer.predict(text)
@@ -145,13 +252,15 @@ class DemoSupportEngine:
             intent_scores = np.asarray(self._intent_embeddings @ query)
             intent_position = int(np.argmax(intent_scores))
             intent_id = self._intent_ids[intent_position]
-            confidence = float(
-                np.clip((intent_scores[intent_position] + 1.0) / 2.0, 0.0, 1.0)
-            )
+            confidence = float(np.clip((intent_scores[intent_position] + 1.0) / 2.0, 0.0, 1.0))
             score_type = "semantic_similarity"
-            classifier_version = "minilm-semantic-demo-v1"
+            classifier_version = f"minilm-semantic-demo-{DEMO_EMBEDDING_REVISION[:12]}"
         candidates = [
-            index for index, case in enumerate(self._cases) if case.intent_id == intent_id
+            index
+            for index, case in enumerate(self._cases)
+            if case.intent_id == intent_id
+            and is_safe_historical_reply(case.reply_text)
+            and is_relevant_historical_reply(case.reply_text, intent_id, text)
         ]
         if confidence < self._intent_threshold or not candidates:
             return ChatResult(
@@ -167,14 +276,18 @@ class DemoSupportEngine:
                 reasons=("low_intent_confidence",),
                 evidence_case_ids=(),
                 classifier_version=classifier_version,
-                retrieval_index_version="amazonhelp-direct-pairs-v1",
+                retrieval_index_version=self._index_version,
             )
         similarities = np.asarray(self._case_embeddings @ query)
         best = max(candidates, key=lambda index: float(similarities[index]))
         case = self._cases[best]
         reply = sanitize_historical_reply(case.reply_text)
-        retrieval_similarity = float(similarities[best])
-        if retrieval_similarity < 0.45 or not reply or _UNSAFE.search(reply):
+        retrieval_similarity = float(np.clip(similarities[best], -1.0, 1.0))
+        if (
+            retrieval_similarity < 0.45
+            or not reply
+            or not is_safe_historical_reply(case.reply_text)
+        ):
             return ChatResult(
                 intent=intent_id,
                 confidence=confidence,
@@ -187,17 +300,20 @@ class DemoSupportEngine:
                 reasons=("insufficient_retrieval_evidence",),
                 evidence_case_ids=(),
                 classifier_version=classifier_version,
-                retrieval_index_version="amazonhelp-direct-pairs-v1",
+                retrieval_index_version=self._index_version,
             )
         return ChatResult(
             intent=intent_id,
             confidence=confidence,
             score_type=score_type,
             retrieval_similarity=retrieval_similarity,
-            response=reply,
+            response=(
+                f"A similar historical case suggested: “{reply}” "
+                "This is general guidance; this demo cannot access your account or take action."
+            ),
             action="respond",
             reasons=(),
             evidence_case_ids=(case.case_id,),
             classifier_version=classifier_version,
-            retrieval_index_version="amazonhelp-direct-pairs-v1",
+            retrieval_index_version=self._index_version,
         )

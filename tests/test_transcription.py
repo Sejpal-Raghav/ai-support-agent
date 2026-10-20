@@ -90,6 +90,15 @@ def test_transcribe_pcm_wav_rejects_silence_before_recognition() -> None:
     assert not recognizer.chunks
 
 
+def test_voice_evaluation_retains_unrecognized_speech_as_empty_text() -> None:
+    result = transcribe_pcm_wav(
+        wav_bytes(), recognizer=FakeRecognizer(final_text=""), asr_model_version="fixture",
+        allow_empty_transcript=True,
+    )
+    assert result.transcript == ""
+    assert result.warnings == ("empty_transcript",)
+
+
 def test_transcribe_pcm_wav_rejects_long_audio() -> None:
     with pytest.raises(AudioValidationError, match="30 seconds") as error:
         transcribe_pcm_wav(
